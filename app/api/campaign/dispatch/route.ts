@@ -410,18 +410,10 @@ export async function POST(request: NextRequest) {
     return { ...c, contactId, contact_id: undefined }
   })
 
-  // Hardening extra: dedupe por contactId para evitar erro do Postgres:
-  // "ON CONFLICT DO UPDATE command cannot affect row a second time"
-  // quando o payload contém o mesmo contato repetido.
-  const dedupedInput = dedupeBy(normalizedInput, (c) => String(c.contactId || ''))
-  if (dedupedInput.length !== normalizedInput.length) {
-    console.warn(
-      `[Dispatch] Payload tinha ${normalizedInput.length - dedupedInput.length} contato(s) duplicado(s) por contactId; dedupe aplicado.`
-    )
-  }
-
   // 2) Tentar resolver contactId faltante via contacts.phone
-  const missingId = dedupedInput.filter((c) => !c.contactId)
+  // IMPORTANTE: O dedupe é feito DEPOIS desta etapa para não perder contatos
+  // que chegam sem contactId mas possuem phone válido (campanhas legadas/clonadas).
+  const missingId = normalizedInput.filter((c) => !c.contactId)
   if (missingId.length > 0) {
     const phoneCandidates = Array.from(
       new Set(
@@ -456,7 +448,7 @@ export async function POST(request: NextRequest) {
         idByPhone.set(String(row.phone), String(row.id))
       }
 
-      for (const c of dedupedInput) {
+      for (const c of normalizedInput) {
         if (c.contactId) continue
         const raw = String(c.phone || '').trim()
         const normalized = raw ? normalizePhoneNumber(raw) : ''
@@ -465,7 +457,16 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  // 2.5) Higienização defensiva: evita IDs/phones "truthy" porém vazios (ex.: "   ")
+  // 2.5) Hardening: dedupe por contactId APÓS resolução via phone
+  // Evita erro do Postgres: "ON CONFLICT DO UPDATE command cannot affect row a second time"
+  const dedupedInput = dedupeBy(normalizedInput, (c) => String(c.contactId || ''))
+  if (dedupedInput.length !== normalizedInput.length) {
+    console.warn(
+      `[Dispatch] Payload tinha ${normalizedInput.length - dedupedInput.length} contato(s) duplicado(s) por contactId; dedupe aplicado.`
+    )
+  }
+
+  // 2.6) Higienização defensiva: evita IDs/phones "truthy" porém vazios (ex.: "   ")
   for (const c of dedupedInput) {
     if (typeof (c as any).contactId === 'string') {
       const trimmed = String((c as any).contactId).trim()
