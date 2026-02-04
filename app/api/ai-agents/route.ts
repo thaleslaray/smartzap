@@ -108,7 +108,8 @@ export async function POST(request: NextRequest) {
       .from('ai_agents')
       .select('*', { count: 'exact', head: true })
 
-    const isFirstAgent = count === 0
+    // count pode ser null quando não há registros
+    const isFirstAgent = !count || count === 0
     if (isFirstAgent) {
       data.is_default = true
     }
