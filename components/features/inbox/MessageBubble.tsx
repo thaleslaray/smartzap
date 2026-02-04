@@ -176,9 +176,9 @@ export const MessageBubble = memo(function MessageBubble({
   return (
     <div
       className={cn(
-        'flex items-end gap-1.5',
+        'flex items-end gap-1.5 w-full',
         'animate-in fade-in duration-100',
-        isInbound ? 'self-start' : 'self-end flex-row-reverse',
+        isInbound ? 'justify-start' : 'justify-end',
         // Spacing within and between groups
         !isLastInGroup && 'mb-0.5',
         isLastInGroup && 'mb-2'
@@ -202,7 +202,7 @@ export const MessageBubble = memo(function MessageBubble({
           )}
         >
           {/* Message content with WhatsApp formatting */}
-          <p className="text-sm leading-relaxed whitespace-pre-wrap break-words">
+          <p className="text-base leading-relaxed whitespace-pre-wrap break-words">
             <WhatsAppFormattedText text={content} />
           </p>
 
