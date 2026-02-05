@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getWhatsAppCredentials } from '@/lib/whatsapp-credentials'
 import { getMetaAppCredentials } from '@/lib/meta-app-credentials'
 import { fetchWithTimeout, safeJson } from '@/lib/server-http'
+import { verifyApiKey } from '@/lib/auth'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -176,6 +177,15 @@ function buildMissingScopesSteps(missing: string[]): string[] {
  * - appSecret: Meta App Secret (se não fornecido, busca do banco)
  */
 export async function POST(request: NextRequest) {
+  // Verifica autenticação
+  const authResult = await verifyApiKey(request)
+  if (!authResult.valid) {
+    return NextResponse.json(
+      { error: 'Unauthorized', message: authResult.error },
+      { status: 401 }
+    )
+  }
+
   try {
     const body = await request.json().catch(() => ({}))
 
