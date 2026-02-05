@@ -487,7 +487,7 @@ export function WhatsAppCredentialsForm({
         {showMetaApp && showAppSecret && (
           <div className="space-y-2">
             <Label htmlFor="metaAppSecret" className="flex items-center gap-2">
-              App Secret
+              Chave Secreta do Aplicativo (App Secret)
             </Label>
             <div className="relative">
               <Input

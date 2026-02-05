@@ -255,6 +255,7 @@ export function DashboardShell({
         businessAccountId: string
         accessToken: string
         metaAppId: string
+        metaAppSecret?: string
     }) => {
         // Salva as credenciais no servidor
         await settingsService.save({
@@ -267,22 +268,23 @@ export function DashboardShell({
             testContact: undefined,
         })
 
-        // Salva Meta App ID separadamente (se fornecido)
-        if (credentials.metaAppId.trim()) {
+        // Salva Meta App ID e Secret separadamente (se fornecido)
+        if (credentials.metaAppId?.trim()) {
             try {
                 await settingsService.saveMetaAppConfig({
                     appId: credentials.metaAppId.trim(),
-                    appSecret: '',
+                    appSecret: credentials.metaAppSecret?.trim() || '',
                 })
             } catch (e) {
-                console.warn('Falha ao salvar Meta App ID:', e)
+                console.warn('Falha ao salvar Meta App config:', e)
             }
         }
 
-        // Revalida o health status
+        // Revalida o health status e queries relacionadas
         refetchHealth()
         queryClient.invalidateQueries({ queryKey: ['settings'] })
         queryClient.invalidateQueries({ queryKey: ['allSettings'] })
+        queryClient.invalidateQueries({ queryKey: ['account-limits'] })
 
         // Sincroniza templates automaticamente em background (não bloqueia o usuário)
         templateService.sync().then((count) => {

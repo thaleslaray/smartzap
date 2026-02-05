@@ -34,6 +34,15 @@ const TUTORIAL_STEPS: OnboardingStep[] = [
   'create-permanent-token',
 ];
 
+// Interface centralizada de credenciais (reutilizada em todo o modal)
+interface OnboardingCredentials {
+  phoneNumberId: string;
+  businessAccountId: string;
+  accessToken: string;
+  metaAppId: string;
+  metaAppSecret?: string;
+}
+
 // Componente interno para wizard de tutorial com navegação sequencial
 function TutorialWizard({
   initialStep,
@@ -42,21 +51,17 @@ function TutorialWizard({
 }: {
   initialStep: OnboardingStep;
   onClose: () => void;
-  onSaveCredentials?: (credentials: {
-    phoneNumberId: string;
-    businessAccountId: string;
-    accessToken: string;
-    metaAppId: string;
-  }) => Promise<void>;
+  onSaveCredentials?: (credentials: OnboardingCredentials) => Promise<void>;
 }) {
   // Encontra o índice inicial baseado no step fornecido
   const initialIndex = TUTORIAL_STEPS.indexOf(initialStep);
   const [currentIndex, setCurrentIndex] = useState(initialIndex >= 0 ? initialIndex : 0);
-  const [credentials, setCredentials] = useState({
+  const [credentials, setCredentials] = useState<OnboardingCredentials>({
     phoneNumberId: '',
     businessAccountId: '',
     accessToken: '',
     metaAppId: '',
+    metaAppSecret: '',
   });
 
   const currentStep = TUTORIAL_STEPS[currentIndex];
@@ -157,12 +162,7 @@ function TutorialWizard({
 interface OnboardingModalProps {
   isConnected: boolean;
   /** Chamado para salvar credenciais (NÃO marca onboarding como completo) */
-  onSaveCredentials: (credentials: {
-    phoneNumberId: string;
-    businessAccountId: string;
-    accessToken: string;
-    metaAppId: string;
-  }) => Promise<void>;
+  onSaveCredentials: (credentials: OnboardingCredentials) => Promise<void>;
   /** Chamado quando o usuário finaliza TODO o fluxo de onboarding */
   onMarkComplete: () => Promise<void>;
   /** Força exibição do modal em um step específico (ex: 'configure-webhook') */
@@ -185,7 +185,17 @@ export function OnboardingModal({ isConnected, onSaveCredentials, onMarkComplete
     completeOnboarding,
     completeStep,
     goToStep,
+    resetOnboarding,
   } = useOnboardingProgress();
+
+  // Se o modal está sendo exibido (banco diz não completo) mas o localStorage
+  // está em 'complete', significa que o banco foi resetado - volta para welcome
+  // Importante: só reseta se WhatsApp NÃO está conectado, senão é um estado legítimo
+  React.useEffect(() => {
+    if (isLoaded && progress.currentStep === 'complete' && !tutorialMode && !isConnected) {
+      resetOnboarding();
+    }
+  }, [isLoaded, progress.currentStep, tutorialMode, resetOnboarding, isConnected]);
 
   // ============================================================================
   // MODO TUTORIAL: Wizard com navegação sequencial pelos 9 passos
@@ -228,18 +238,19 @@ export function OnboardingModal({ isConnected, onSaveCredentials, onMarkComplete
   const shouldShow = isLoaded;
 
   // Estado temporário para credenciais durante o wizard
-  const [credentials, setCredentials] = React.useState({
+  const [credentials, setCredentials] = React.useState<OnboardingCredentials>({
     phoneNumberId: '',
     businessAccountId: '',
     accessToken: '',
     metaAppId: '',
+    metaAppSecret: '',
   });
 
-  // Usado pelo caminho direto (direct-credentials) - salva e marca como completo
+  // Usado pelo caminho direto (direct-credentials) - salva e mostra tela de conclusão
+  // NÃO marca como completo ainda - só quando o usuário clicar em "Começar a usar"
   const handleDirectComplete = async () => {
     await onSaveCredentials(credentials);
-    await onMarkComplete();
-    completeOnboarding();
+    goToStep('complete');
   };
 
   const renderStep = () => {
@@ -315,20 +326,10 @@ export function OnboardingModal({ isConnected, onSaveCredentials, onMarkComplete
             onNext={async () => {
               // Marca webhook como completo
               completeStep('configure-webhook');
-              // Marca onboarding como completo no banco
-              await onMarkComplete();
-              // Fecha o modal
-              completeOnboarding();
+              // Mostra tela de conclusão (não marca como completo ainda)
               goToStep('complete');
-              onClose?.();
             }}
-            onBack={async () => {
-              // Se voltar, ainda marca como completo (webhook é opcional)
-              await onMarkComplete();
-              completeOnboarding();
-              goToStep('complete');
-              onClose?.();
-            }}
+            onBack={previousStep}
             stepNumber={6}
             totalSteps={totalSteps}
           />
