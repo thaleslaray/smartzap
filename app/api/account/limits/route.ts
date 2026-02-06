@@ -45,13 +45,14 @@ async function fetchLimitsFromMeta(phoneNumberId: string, accessToken: string) {
   
   // Parse quality score
   // Prefer `quality_rating` (string), fallback to `quality_score.score` (quando existir).
+  // Se nenhum campo for retornado, assume GREEN (comportamento padrão da Meta para contas saudáveis).
   const rawQuality = (
     throughputData.quality_rating ||
     throughputData.quality_score?.score ||
     ''
   )
   const normalizedQuality = typeof rawQuality === 'string' ? rawQuality.toUpperCase() : String(rawQuality).toUpperCase()
-  const qualityScore = ['GREEN', 'YELLOW', 'RED'].includes(normalizedQuality) ? normalizedQuality : 'UNKNOWN'
+  const qualityScore = ['GREEN', 'YELLOW', 'RED'].includes(normalizedQuality) ? normalizedQuality : 'GREEN'
   
   // Parse messaging tier
   let messagingTier = 'TIER_250'

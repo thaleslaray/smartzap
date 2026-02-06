@@ -783,3 +783,135 @@ export function buildMetaTemplatePayload(input: {
 
   return payload
 }
+
+/**
+ * Renderiza template como texto legível para exibição no inbox.
+ * Usado para dar contexto à IA e ao operador sobre o que foi enviado.
+ *
+ * Formato de saída:
+ * ```
+ * 📋 *Template: nome_do_template*
+ *
+ * [Header se houver]
+ *
+ * Corpo do template com {{variáveis}} substituídas
+ *
+ * _Rodapé se houver_
+ *
+ * ---
+ * [Botão 1]
+ * [Botão 2]
+ * ```
+ */
+export function renderTemplatePreviewText(
+  template: Template,
+  resolvedValues: ResolvedTemplateValues
+): string {
+  const components: TemplateComponent[] =
+    (template.components as TemplateComponent[]) ||
+    (template.content as unknown as TemplateComponent[]) ||
+    []
+
+  const lines: string[] = []
+
+  // Header com nome do template
+  lines.push(`📋 *Template: ${template.name}*`)
+  lines.push('')
+
+  // HEADER component
+  const headerComponent = components.find((c) => c.type === 'HEADER')
+  if (headerComponent) {
+    if (headerComponent.format === 'TEXT' && headerComponent.text) {
+      // Header de texto - substituir variáveis
+      let headerText = headerComponent.text
+      if (resolvedValues.header?.length) {
+        headerText = replaceTemplateVariables(headerText, resolvedValues.header)
+      }
+      lines.push(`*${headerText}*`)
+      lines.push('')
+    } else if (headerComponent.format === 'IMAGE') {
+      lines.push('[🖼️ Imagem]')
+      lines.push('')
+    } else if (headerComponent.format === 'VIDEO') {
+      lines.push('[🎬 Vídeo]')
+      lines.push('')
+    } else if (headerComponent.format === 'DOCUMENT') {
+      lines.push('[📄 Documento]')
+      lines.push('')
+    } else if (headerComponent.format === 'LOCATION') {
+      const loc = resolvedValues.headerLocation
+      if (loc?.name || loc?.address) {
+        lines.push(`[📍 ${loc.name || loc.address}]`)
+      } else {
+        lines.push('[📍 Localização]')
+      }
+      lines.push('')
+    }
+  }
+
+  // BODY component
+  const bodyComponent = components.find((c) => c.type === 'BODY')
+  if (bodyComponent?.text) {
+    let bodyText = bodyComponent.text
+    if (resolvedValues.body?.length) {
+      bodyText = replaceTemplateVariables(bodyText, resolvedValues.body)
+    }
+    lines.push(bodyText)
+    lines.push('')
+  }
+
+  // FOOTER component
+  const footerComponent = components.find((c) => c.type === 'FOOTER')
+  if (footerComponent?.text) {
+    lines.push(`_${footerComponent.text}_`)
+    lines.push('')
+  }
+
+  // BUTTONS components
+  const buttonsComponents = components.filter((c) => c.type === 'BUTTONS')
+  const allButtons: TemplateButton[] = []
+  for (const bc of buttonsComponents) {
+    if (bc.buttons) {
+      allButtons.push(...bc.buttons)
+    }
+  }
+
+  if (allButtons.length > 0) {
+    lines.push('---')
+    for (const btn of allButtons) {
+      if (btn.type === 'URL') {
+        lines.push(`[🔗 ${btn.text}]`)
+      } else if (btn.type === 'PHONE_NUMBER') {
+        lines.push(`[📞 ${btn.text}]`)
+      } else if (btn.type === 'QUICK_REPLY') {
+        lines.push(`[💬 ${btn.text}]`)
+      } else if (btn.type === 'COPY_CODE') {
+        lines.push(`[📋 ${btn.text}]`)
+      } else if (btn.type === 'FLOW') {
+        lines.push(`[📝 ${btn.text}]`)
+      } else {
+        lines.push(`[${btn.text}]`)
+      }
+    }
+  }
+
+  return lines.join('\n').trim()
+}
+
+/**
+ * Substitui variáveis posicionais ({{1}}, {{2}}) ou nomeadas ({{nome}}) no texto.
+ */
+function replaceTemplateVariables(
+  text: string,
+  values: Array<{ key: string; text: string }>
+): string {
+  let result = text
+
+  for (const v of values) {
+    // Substitui tanto {{1}} quanto {{nome}} dependendo do formato
+    const positionalRegex = new RegExp(`\\{\\{${v.key}\\}\\}`, 'g')
+    result = result.replace(positionalRegex, v.text)
+  }
+
+  return result
+}

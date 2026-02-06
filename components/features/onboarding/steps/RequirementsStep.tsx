@@ -51,8 +51,6 @@ export function RequirementsStep({ onNext, onBack, stepNumber, totalSteps }: Req
             <ul className="text-sm text-blue-200/80 space-y-1">
               <li>• <strong>Verificar empresa</strong> — pode começar sem verificação (limite de 250 contatos/dia)</li>
               <li>• <strong>CNPJ ou documentos</strong> — só se quiser verificar depois para escalar</li>
-              <li>• <strong>Comprar número virtual</strong> — seu número pessoal ou fixo funciona</li>
-              <li className="text-blue-200/60 text-xs pl-4">💡 Se precisar de um número dedicado, pesquise por "número virtual WhatsApp Business"</li>
             </ul>
           </div>
         </div>

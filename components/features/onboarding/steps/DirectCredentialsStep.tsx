@@ -12,12 +12,14 @@ interface DirectCredentialsStepProps {
     businessAccountId: string
     accessToken: string
     metaAppId: string
+    metaAppSecret?: string
   }
   onCredentialsChange: (credentials: {
     phoneNumberId: string
     businessAccountId: string
     accessToken: string
     metaAppId: string
+    metaAppSecret?: string
   }) => void
   onComplete: () => Promise<void>
   onBack: () => void
@@ -29,7 +31,7 @@ interface DirectCredentialsStepProps {
  * Usa o componente centralizado WhatsAppCredentialsForm com configuração
  * específica para o fluxo de onboarding:
  * - Sem botão de salvar (usa fluxo de teste → continuar)
- * - Mostra Meta App ID mas não App Secret (simplificado para onboarding)
+ * - Mostra Meta App ID e App Secret para configuração completa
  * - Após teste bem sucedido, mostra botão "Conectar e Continuar"
  */
 export function DirectCredentialsStep({
@@ -47,7 +49,7 @@ export function DirectCredentialsStep({
     businessAccountId: credentials.businessAccountId,
     accessToken: credentials.accessToken,
     metaAppId: credentials.metaAppId,
-    metaAppSecret: '', // Não usado no onboarding
+    metaAppSecret: credentials.metaAppSecret || '',
   }
 
   // Handler para mudança de valores
@@ -58,6 +60,7 @@ export function DirectCredentialsStep({
         businessAccountId: values.businessAccountId,
         accessToken: values.accessToken,
         metaAppId: values.metaAppId || '',
+        metaAppSecret: values.metaAppSecret,
       })
       // Reseta validação quando os campos mudam
       setIsValid(false)
@@ -102,7 +105,7 @@ export function DirectCredentialsStep({
         onChange={handleChange}
         onTestSuccess={handleTestSuccess}
         showMetaApp={true}
-        showAppSecret={false} // Simplificado para onboarding
+        showAppSecret={true}
         showValidateButton={false} // Não valida permissões no onboarding
         showSaveButton={false} // Usa botão customizado abaixo
         showTestButton={!isValid} // Esconde após validação

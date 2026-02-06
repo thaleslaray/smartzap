@@ -93,12 +93,13 @@ export const THROUGHPUT_LIMITS: Record<ThroughputLevel, number> = {
 };
 
 // Default limits for new/unverified accounts
+// Qualidade assume GREEN por padrão (comportamento da Meta para contas sem histórico negativo)
 export const DEFAULT_LIMITS: AccountLimits = {
   messagingTier: 'TIER_250',
   maxUniqueUsersPerDay: 250,
   throughputLevel: 'STANDARD',
   maxMessagesPerSecond: 80,
-  qualityScore: 'UNKNOWN',
+  qualityScore: 'GREEN',
   usedToday: 0,
   lastFetched: new Date().toISOString(),
 };
@@ -368,9 +369,10 @@ export async function fetchAccountLimits(
       throughputData.throughput?.level === 'high' ? 'HIGH' : 'STANDARD';
 
     // Parse quality score
+    // Se o campo não for retornado pela API, assume GREEN (comportamento padrão da Meta)
     const rawQuality = throughputData.quality_score?.score?.toUpperCase();
     const qualityScore: QualityScore =
-      ['GREEN', 'YELLOW', 'RED'].includes(rawQuality) ? rawQuality : 'UNKNOWN';
+      ['GREEN', 'YELLOW', 'RED'].includes(rawQuality) ? rawQuality : 'GREEN';
 
     // Parse messaging tier
     const rawTier = tierData.whatsapp_business_manager_messaging_limit || 'TIER_250';

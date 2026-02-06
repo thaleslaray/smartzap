@@ -430,6 +430,29 @@ export async function createMessage(
 }
 
 /**
+ * Find message by WhatsApp message ID
+ * Used to check for duplicates before creating
+ */
+export async function findMessageByWhatsAppId(
+  whatsappMessageId: string
+): Promise<InboxMessage | null> {
+  const supabase = getClient()
+
+  const { data, error } = await supabase
+    .from('inbox_messages')
+    .select('*')
+    .eq('whatsapp_message_id', whatsappMessageId)
+    .single()
+
+  if (error) {
+    if (error.code === 'PGRST116') return null // Not found
+    throw new Error(`Failed to find message: ${error.message}`)
+  }
+
+  return data as InboxMessage
+}
+
+/**
  * Update message delivery status
  */
 export async function updateMessageDeliveryStatus(
@@ -908,6 +931,7 @@ export const inboxDb = {
   listMessages: getMessagesByConversation,
   getMessages: getMessagesByConversation,
   createMessage,
+  findMessageByWhatsAppId,
   updateMessageDeliveryStatus,
   updateMessageWithAIAnalysis,
 

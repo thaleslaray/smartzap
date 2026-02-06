@@ -3,7 +3,8 @@ import { campaignDb, templateDb } from '@/lib/supabase-db'
 import { supabase } from '@/lib/supabase'
 import { CampaignStatus, ContactStatus } from '@/types'
 import { getUserFriendlyMessageForMetaError, normalizeMetaErrorTextForStorage } from '@/lib/whatsapp-errors'
-import { buildMetaTemplatePayload, precheckContactForTemplate } from '@/lib/whatsapp/template-contract'
+import { buildMetaTemplatePayload, precheckContactForTemplate, renderTemplatePreviewText } from '@/lib/whatsapp/template-contract'
+import { syncCampaignTemplateToInbox } from '@/lib/inbox/inbox-service'
 import { emitWorkflowTrace, maskPhone, timePhase } from '@/lib/workflow-trace'
 import { createRateLimiter } from '@/lib/rate-limiter'
 import { recordStableBatch, recordThroughputExceeded, getAdaptiveThrottleConfigWithSource, getAdaptiveThrottleState } from '@/lib/whatsapp-adaptive-throttle'
@@ -1561,6 +1562,25 @@ const workflowHandler = serve<CampaignWorkflowInput>(
                 { sendingAt: sendingAtIso, messageId, traceId }
               )
               dbTimeMs += Date.now() - db0
+
+              // Sincroniza template com inbox (fire-and-forget, non-blocking)
+              // Permite que a IA tenha contexto e o operador veja o histórico
+              const activeTemplateForSync = refreshedTemplateForBatch || templateForBatch
+              syncCampaignTemplateToInbox({
+                phone: precheck.normalizedPhone,
+                contactId: contact.contactId,
+                whatsappMessageId: messageId,
+                templateName,
+                templatePreviewText: renderTemplatePreviewText(
+                  activeTemplateForSync as any,
+                  valuesForSend
+                ),
+                resolvedValues: valuesForSend,
+                campaignId,
+                template: activeTemplateForSync as any,
+              }).catch((err) => {
+                console.warn(`[workflow] inbox sync failed for ${maskPhone(contact.phone)}:`, err)
+              })
 
               // Métrica operacional: quando foi o último "sent" (envio/dispatch), sem depender de delivery.
               lastSentAtInBatch = new Date().toISOString()

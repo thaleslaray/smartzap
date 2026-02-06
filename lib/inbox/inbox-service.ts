@@ -12,6 +12,7 @@ import {
   markConversationAsRead,
   getMessagesByConversation,
   createMessage,
+  findMessageByWhatsAppId,
   updateMessageDeliveryStatus,
   getLabels,
   createLabel,
@@ -37,7 +38,9 @@ import type {
   CreateInboxQuickReplyDTO,
   ConversationMode,
   ConversationPriority,
+  Template,
 } from '@/types'
+import type { ResolvedTemplateValues } from '@/lib/whatsapp/template-contract'
 
 // =============================================================================
 // Conversation Service
@@ -348,4 +351,93 @@ export async function executeHandoff(
     // @ts-expect-error - This field exists but isn't in the DTO
     handoff_summary: `**Motivo:** ${reason}\n\n**Resumo:** ${summary}`,
   })
+}
+
+// =============================================================================
+// Campaign Template Sync
+// =============================================================================
+
+export interface SyncCampaignTemplateParams {
+  phone: string
+  contactId: string | null
+  whatsappMessageId: string
+  templateName: string
+  templatePreviewText: string
+  resolvedValues: ResolvedTemplateValues
+  campaignId: string
+  template: Template
+}
+
+/**
+ * Sincroniza template enviado por campanha com o inbox.
+ *
+ * Cria uma entrada em inbox_messages para que:
+ * 1. A IA tenha contexto do template enviado quando o cliente responder
+ * 2. O operador veja o template no histórico visual do inbox
+ * 3. Status updates (delivered, read) sejam sincronizados automaticamente
+ *    (porque usamos o mesmo whatsapp_message_id da Meta)
+ *
+ * Características:
+ * - Idempotente: verifica se já existe por whatsapp_message_id
+ * - Best-effort: catch + log, não propaga erro para não afetar o workflow
+ *
+ * @returns ID da mensagem criada ou null se já existia/erro
+ */
+export async function syncCampaignTemplateToInbox(
+  params: SyncCampaignTemplateParams
+): Promise<string | null> {
+  const {
+    phone,
+    contactId,
+    whatsappMessageId,
+    templateName,
+    templatePreviewText,
+    resolvedValues,
+    campaignId,
+    template,
+  } = params
+
+  try {
+    // Idempotência: verifica se já existe mensagem com esse whatsapp_message_id
+    const existing = await findMessageByWhatsAppId(whatsappMessageId)
+    if (existing) {
+      console.log(`[inbox-sync] Message already exists for ${whatsappMessageId}, skipping`)
+      return existing.id
+    }
+
+    // Busca ou cria conversa para esse telefone
+    const conversation = await getOrCreateConversation(
+      phone,
+      contactId || undefined,
+      undefined // aiAgentId - usar default
+    )
+
+    // Cria a mensagem no inbox
+    const message = await createMessage({
+      conversation_id: conversation.id,
+      direction: 'outbound',
+      content: templatePreviewText,
+      message_type: 'template',
+      whatsapp_message_id: whatsappMessageId,
+      delivery_status: 'sent',
+      payload: {
+        type: 'campaign_template',
+        campaign_id: campaignId,
+        template_name: templateName,
+        template_language: template.language,
+        resolved_values: resolvedValues,
+        synced_at: new Date().toISOString(),
+      },
+    })
+
+    console.log(`[inbox-sync] Created inbox message ${message.id} for campaign ${campaignId}`)
+    return message.id
+  } catch (error) {
+    // Best-effort: log e retorna null, não propaga erro
+    console.warn(
+      `[inbox-sync] Failed to sync template to inbox for ${phone}:`,
+      error instanceof Error ? error.message : error
+    )
+    return null
+  }
 }
