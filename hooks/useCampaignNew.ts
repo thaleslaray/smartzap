@@ -448,7 +448,7 @@ export const useCampaignNewController = () => {
 
   // Busca contagens de contatos por tag - só roda quando tagsQuery tem dados (step >= 2)
   useEffect(() => {
-    const tags = (tagsQuery.data || []).slice(0, 6)
+    const tags = (tagsQuery.data || []).slice(0, 30)
     if (!tags.length) return
     let cancelled = false
     Promise.all(
@@ -1386,7 +1386,7 @@ export const useCampaignNewController = () => {
     : 'Nenhum filtro selecionado'
   const countryData = countriesQuery.data?.data || []
   const stateData = statesQuery.data?.data || []
-  const tagChips = (tagsQuery.data || []).slice(0, 6)
+  const tagChips = (tagsQuery.data || []).slice(0, 30)
   const countryChips = countryData.map((item) => item.code)
   const stateChips = stateData.map((item) => item.code)
   const countryCounts = useMemo(() => {
