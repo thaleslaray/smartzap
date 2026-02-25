@@ -16,6 +16,9 @@ import { getPricingBreakdown } from '@/lib/whatsapp-pricing'
 import { useExchangeRate } from '@/hooks/useExchangeRate'
 import { useCampaignFolders } from '@/hooks/useCampaignFolders'
 
+// ── Constants ──────────────────────────────────────────────────────────
+const MAX_TAG_CHIPS = 10
+
 // ── Types ──────────────────────────────────────────────────────────────
 
 export type Contact = {
@@ -46,6 +49,11 @@ type CountryCount = {
 
 type StateCount = {
   code: string
+  count: number
+}
+
+type TagCount = {
+  tag: string
   count: number
 }
 
@@ -208,7 +216,6 @@ export const useCampaignNewController = () => {
     const month = months[now.getMonth()] || 'mes'
     return `Campanha ${day} de ${month}.`
   })
-  const [tagCounts, setTagCounts] = useState<Record<string, number>>({})
   const [showStatesPanel, setShowStatesPanel] = useState(false)
   const [stateSearch, setStateSearch] = useState('')
   const { rate: exchangeRate, hasRate } = useExchangeRate()
@@ -248,9 +255,9 @@ export const useCampaignNewController = () => {
   }, [customFieldsQuery.data])
 
   // Queries de audiência - só carregam a partir do Step 2 (Público)
-  const tagsQuery = useQuery({
-    queryKey: ['contact-tags'],
-    queryFn: () => fetchJson<string[]>('/api/contacts/tags'),
+  const tagCountsQuery = useQuery({
+    queryKey: ['contact-tag-counts'],
+    queryFn: () => fetchJson<{ data: TagCount[] }>('/api/contacts/tag-counts'),
     staleTime: 60_000,
     enabled: step >= 2,
   })
@@ -445,29 +452,6 @@ export const useCampaignNewController = () => {
       .catch(() => {})
     return () => controller.abort()
   }, [testContactQuery.data?.phone])
-
-  // Busca contagens de contatos por tag - só roda quando tagsQuery tem dados (step >= 2)
-  useEffect(() => {
-    const tags = (tagsQuery.data || []).slice(0, 30)
-    if (!tags.length) return
-    let cancelled = false
-    Promise.all(
-      tags.map(async (tag) => {
-        const res = await fetchJson<{ total: number }>('/api/contacts?limit=1&tag=' + encodeURIComponent(tag))
-        return [tag, res.total ?? 0] as const
-      })
-    ).then((pairs) => {
-      if (cancelled) return
-      const next: Record<string, number> = {}
-      pairs.forEach(([tag, total]) => {
-        next[tag] = total
-      })
-      setTagCounts(next)
-    })
-    return () => {
-      cancelled = true
-    }
-  }, [tagsQuery.data])
 
   const contactFields = [
     { key: 'nome', label: 'Nome' },
@@ -1386,7 +1370,15 @@ export const useCampaignNewController = () => {
     : 'Nenhum filtro selecionado'
   const countryData = countriesQuery.data?.data || []
   const stateData = statesQuery.data?.data || []
-  const tagChips = (tagsQuery.data || []).slice(0, 30)
+  const allTags = tagCountsQuery.data?.data || []
+  const tagChips = allTags.slice(0, MAX_TAG_CHIPS).map((item) => item.tag)
+  const tagCounts = useMemo(() => {
+    const next: Record<string, number> = {}
+    allTags.forEach((item) => {
+      next[item.tag] = item.count
+    })
+    return next
+  }, [allTags])
   const countryChips = countryData.map((item) => item.code)
   const stateChips = stateData.map((item) => item.code)
   const countryCounts = useMemo(() => {
@@ -1556,9 +1548,10 @@ export const useCampaignNewController = () => {
     // Tags
     selectedTags,
     setSelectedTags,
-    tagsQuery,
+    tagCountsQuery,
     tagChips,
     tagCounts,
+    allTags,
 
     // Countries
     selectedCountries,
