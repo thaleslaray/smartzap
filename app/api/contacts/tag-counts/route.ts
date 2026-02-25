@@ -11,44 +11,83 @@ type TagCount = {
 }
 
 /**
+ * Sanitiza uma tag individual (mesma lógica do SQL RPC get_contact_tag_counts).
+ * Filtra tags vazias, nested arrays corrompidos ("[...]"), e whitespace-only.
+ */
+const isValidTag = (tag: unknown): tag is string => {
+  if (typeof tag !== 'string') return false
+  const trimmed = tag.trim()
+  return trimmed.length > 0 && !trimmed.startsWith('[')
+}
+
+/**
+ * Fallback in-memory: pagina todos os contatos e agrega tags no servidor.
+ * Usado quando o RPC get_contact_tag_counts ainda não foi aplicado no banco.
+ */
+async function aggregateTagCountsInMemory(): Promise<TagCount[]> {
+  const PAGE_SIZE = 1000
+  const counts: Record<string, number> = {}
+  let from = 0
+
+  while (true) {
+    const { data, error } = await supabase
+      .from('contacts')
+      .select('tags')
+      .not('tags', 'is', null)
+      .order('id')
+      .range(from, from + PAGE_SIZE - 1)
+    if (error) throw error
+
+    const rows = data || []
+    for (const row of rows) {
+      const tags = row.tags
+      if (!Array.isArray(tags) || tags.length === 0) continue
+      for (const tag of tags) {
+        if (!isValidTag(tag)) continue
+        counts[tag] = (counts[tag] || 0) + 1
+      }
+    }
+
+    if (rows.length < PAGE_SIZE) break
+    from += PAGE_SIZE
+  }
+
+  return Object.entries(counts)
+    .map(([tag, count]) => ({ tag, count }))
+    .sort((a, b) => b.count - a.count || a.tag.localeCompare(b.tag))
+}
+
+/**
  * GET /api/contacts/tag-counts
  * Retorna todas as tags com contagem de contatos, ordenadas por popularidade.
+ * Tenta RPC SQL (get_contact_tag_counts) primeiro; se indisponível, faz
+ * agregação in-memory com a mesma sanitização.
  */
 export async function GET(request: NextRequest) {
   try {
     const auth = await requireSessionOrApiKey(request)
     if (auth) return auth
 
-    // Paginação: PostgREST limita a 1000 rows sem .range() explícito.
-    const PAGE_SIZE = 1000
-    const counts: Record<string, number> = {}
-    let from = 0
+    let result: TagCount[]
 
-    while (true) {
-      const { data, error } = await supabase
-        .from('contacts')
-        .select('tags')
-        .order('id')
-        .range(from, from + PAGE_SIZE - 1)
-      if (error) throw error
+    // Tenta RPC (mais eficiente, roda no banco)
+    const { data, error } = await supabase.rpc('get_contact_tag_counts')
 
-      const rows = data || []
-      rows.forEach((row) => {
-        const tags = row.tags
-        if (!Array.isArray(tags)) return
-        tags.forEach((tag: string) => {
-          if (!tag || typeof tag !== 'string') return
-          counts[tag] = (counts[tag] || 0) + 1
-        })
-      })
-
-      if (rows.length < PAGE_SIZE) break
-      from += PAGE_SIZE
+    if (error) {
+      // RPC não existe ainda — fallback para agregação in-memory
+      const isRpcMissing =
+        error.message?.includes('could not find') ||
+        error.message?.includes('schema cache') ||
+        error.code === '42883' // undefined_function
+      if (isRpcMissing) {
+        console.warn('RPC get_contact_tag_counts not found, using in-memory fallback')
+        result = await aggregateTagCountsInMemory()
+      } else {
+        throw error
+      }
+    } else {
+      result = (data || []) as TagCount[]
     }
-
-    const result: TagCount[] = Object.entries(counts)
-      .map(([tag, count]) => ({ tag, count }))
-      .sort((a, b) => b.count - a.count || a.tag.localeCompare(b.tag))
 
     return NextResponse.json({ data: result }, {
       headers: {
