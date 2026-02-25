@@ -76,9 +76,8 @@ export async function GET(request: NextRequest) {
     if (error) {
       // RPC não existe ainda — fallback para agregação in-memory
       const isRpcMissing =
-        error.message?.includes('could not find') ||
-        error.message?.includes('schema cache') ||
-        error.code === '42883' // undefined_function
+        error.code === '42883' || // undefined_function (PostgreSQL)
+        error.message?.includes('Could not find the function') // PostgREST
       if (isRpcMissing) {
         console.warn('RPC get_contact_tag_counts not found, using in-memory fallback')
         result = await aggregateTagCountsInMemory()
