@@ -100,11 +100,11 @@ function LoginForm() {
     <div className="w-full max-w-md">
       {/* Logo */}
       <div className="text-center mb-8">
-        <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-linear-to-br from-emerald-500 to-emerald-600 mb-4">
-          <span className="text-3xl font-bold text-white">S</span>
+        <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-linear-to-br from-blue-600 to-blue-800 mb-4">
+          <span className="text-3xl font-bold text-white">Z</span>
         </div>
         <h1 className="text-2xl font-bold text-[var(--ds-text-primary)]">
-          {companyName || 'SmartZap'}
+          {companyName || 'Zap Luan'}
         </h1>
         <p className="text-[var(--ds-text-secondary)] mt-1">Entre para continuar</p>
       </div>
@@ -130,7 +130,7 @@ function LoginForm() {
               placeholder="Senha"
               name="password"
               autoComplete="current-password"
-              className="w-full bg-[var(--ds-bg-surface)] border border-[var(--ds-border-default)] rounded-xl pl-11 pr-11 py-3 text-[var(--ds-text-primary)] placeholder:text-[var(--ds-text-muted)] focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+              className="w-full bg-[var(--ds-bg-surface)] border border-[var(--ds-border-default)] rounded-xl pl-11 pr-11 py-3 text-[var(--ds-text-primary)] placeholder:text-[var(--ds-text-muted)] focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent"
               autoFocus
             />
             <button
@@ -149,7 +149,7 @@ function LoginForm() {
           <button
             type="submit"
             disabled={isLoading || (!isConfigured && isLocalhost)}
-            className="w-full mt-6 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium py-3 rounded-xl transition-colors flex items-center justify-center gap-2"
+            className="w-full mt-6 bg-blue-700 hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium py-3 rounded-xl transition-colors flex items-center justify-center gap-2"
           >
             {isLoading ? (
               <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -165,24 +165,7 @@ function LoginForm() {
 
       {/* Footer */}
       <p className="text-center text-[var(--ds-text-muted)] text-sm mt-6">
-        SmartZap © {new Date().getFullYear()} |{' '}
-        <a
-          href="https://www.escoladeautomacao.com.br/"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="hover:text-emerald-500 transition-colors"
-        >
-          Escola de Automação
-        </a>
-        {' '}| by{' '}
-        <a
-          href="https://instagram.com/thaleslaray"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="hover:text-emerald-500 transition-colors"
-        >
-          @thaleslaray
-        </a>
+        ZAPLUAN © 2026 | encamark | luandooria
       </p>
     </div>
   )
