@@ -337,6 +337,30 @@ export function getTemplateVariableInfo(template: Template | null | undefined): 
 
   result.totalCount = result.header.length + result.body.length + result.buttons.length
 
+  // Fallback: se nenhuma variável de corpo foi encontrada via components
+  // mas template.content tem variáveis, parsear direto do content.
+  // Ocorre quando row.components é null no banco (templates antigos/sem sync completo).
+  if (result.body.length === 0 && typeof template.content === 'string' && template.content) {
+    const matches = template.content.match(new RegExp(VARIABLE_REGEX.source, 'g')) || []
+    const seenKeys = new Set<string>()
+
+    for (const match of matches) {
+      const { isNumeric, value } = parseVariableId(match)
+      if (seenKeys.has(value)) continue
+      seenKeys.add(value)
+
+      result.body.push({
+        index: isNumeric ? parseInt(value, 10) : 0,
+        key: value,
+        placeholder: match,
+        context: `Variável do corpo (${match})`,
+      })
+    }
+
+    // Recalcular totalCount após fallback
+    result.totalCount = result.header.length + result.body.length + result.buttons.length
+  }
+
   return result
 }
 

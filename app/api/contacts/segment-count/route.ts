@@ -26,7 +26,8 @@ const resolveCountry = (phone: string): string | null => {
 
 /**
  * GET /api/contacts/segment-count
- * Retorna contagem real de contatos com filtros por tags, pais (ISO) e UF (BR)
+ * Retorna contagem real de contatos com filtros por tags, pais (ISO) e UF (BR).
+ * Filtro de tags aplicado no SQL (evita PostgREST 1000-row default limit).
  */
 export async function GET(request: Request) {
   try {
@@ -39,28 +40,74 @@ export async function GET(request: Request) {
     const states = parseList(url.searchParams.get('states'))
     const combine = (url.searchParams.get('combine') || 'or').toLowerCase() === 'and' ? 'and' : 'or'
 
-    const { data, error } = await supabase
+    const hasLocationFilters = countries.length > 0 || states.length > 0
+
+    // Construir query base com filtro de tags no SQL
+    // Usa operador JSONB cs (@>) do PostgreSQL.
+    // Nota: && (ov) não funciona em colunas JSONB — apenas em arrays nativos (text[]).
+    // Para OR: múltiplos @> combinados via .or()
+    let query = supabase
       .from('contacts')
-      .select('phone,tags')
+      .select('phone,tags', { count: 'exact' })
+
+    // Validate tags to prevent PostgREST filter injection
+    const safeTags = tags.filter(tag => /^[\w\s\-áàãâéêíóôõúüçÁÀÃÂÉÊÍÓÔÕÚÜÇ]+$/i.test(tag))
+
+    // Em modo AND, filtro de tags no SQL é seguro (reduz dataset).
+    // Em modo OR com localização, NÃO filtra tags no SQL — senão elimina contatos
+    // que matcham apenas localização. O filtro de tag é feito in-memory junto com os demais.
+    const applyTagFilterInSql = safeTags.length > 0 && (combine === 'and' || !hasLocationFilters)
+    if (applyTagFilterInSql) {
+      if (combine === 'and') {
+        query = query.filter('tags', 'cs', JSON.stringify(safeTags))
+      } else {
+        const orConditions = safeTags
+          .map((tag) => `tags.cs.${JSON.stringify([tag])}`)
+          .join(',')
+        query = query.or(orConditions)
+      }
+    }
+
+    // Para filtros de localização, precisamos buscar os dados completos para
+    // filtrar por país/UF (derivado do número de telefone, não disponível no SQL).
+    // Limite alto para minimizar truncamento do PostgREST default (1000 linhas).
+    // Limitação: datasets com >10000 contatos no segmento podem ter contagem imprecisa.
+    if (hasLocationFilters) {
+      query = query.limit(10000)
+    }
+
+    const { data, count: sqlCount, error } = await query
 
     if (error) throw error
 
     const contacts = data || []
-    const total = contacts.length
 
-    if (!tags.length && !countries.length && !states.length) {
-      return NextResponse.json({ total, matched: total })
+    // Sem filtros de localização: count do SQL é preciso e sem limite de linhas
+    if (!hasLocationFilters) {
+      const matched = sqlCount ?? contacts.length
+      return NextResponse.json({ total: matched, matched })
     }
 
+    // Com filtros de localização: filtrar em memória sobre subconjunto filtrado por tag
+    const total = sqlCount ?? contacts.length
+
     const matched = contacts.reduce((count, contact) => {
-      const contactTags = Array.isArray(contact.tags) ? contact.tags : []
       const phone = String(contact.phone || '')
       const country = countries.length ? resolveCountry(phone) : null
       const uf = states.length ? getBrazilUfFromPhone(phone) : null
 
-      const tagMatches = tags.map((tag) => contactTags.includes(tag))
       const countryMatches = countries.map((code) => Boolean(country && country === code))
       const stateMatches = states.map((code) => Boolean(uf && uf === code))
+
+      // Quando tags NÃO foram filtradas no SQL (OR + localização), avaliar in-memory.
+      // Quando tags JÁ foram filtradas no SQL (AND, ou OR sem localização), não duplicar filtro.
+      const tagMatches: boolean[] = []
+      if (!applyTagFilterInSql && safeTags.length > 0) {
+        const contactTags: string[] = Array.isArray((contact as any).tags) ? (contact as any).tags : []
+        const hasTagMatch = safeTags.some((t) => contactTags.includes(t))
+        tagMatches.push(hasTagMatch)
+      }
+
       const filters = [...tagMatches, ...countryMatches, ...stateMatches]
 
       if (!filters.length) return count + 1

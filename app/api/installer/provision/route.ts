@@ -20,6 +20,7 @@
  */
 
 import { z } from 'zod';
+import { fetchWithTimeout } from '@/lib/installer/fetch-with-timeout';
 import { runSchemaMigration, checkSchemaApplied } from '@/lib/installer/migrations';
 import { bootstrapInstance } from '@/lib/installer/bootstrap';
 import { triggerProjectRedeploy, upsertProjectEnvs, waitForVercelDeploymentReady, disableDeploymentProtection } from '@/lib/installer/vercel';
@@ -31,7 +32,7 @@ import {
   createSupabaseProject,
   detectSupabaseRegion,
 } from '@/lib/installer/supabase';
-import type { InstallStep } from '@/lib/installer/types';
+import type { InstallStep, InstallErrorType } from '@/lib/installer/types';
 
 export const maxDuration = 300;
 export const runtime = 'nodejs';
@@ -71,6 +72,7 @@ interface StreamEvent {
   title?: string;
   subtitle?: string;
   error?: string;
+  errorType?: InstallErrorType;
   errorDetails?: string;
   returnToStep?: InstallStep;
 }
@@ -143,13 +145,16 @@ function isDbConnectionError(err: unknown): boolean {
 
 async function validateVercelToken(token: string): Promise<{ projectId: string; projectName: string; teamId?: string }> {
   // List projects to validate token and find smartzap project
-  const res = await fetch('https://api.vercel.com/v9/projects?limit=100', {
+  const res = await fetchWithTimeout('https://api.vercel.com/v9/projects?limit=100', {
     headers: { Authorization: `Bearer ${token}` },
   });
 
   if (!res.ok) {
+    if (res.status === 401 || res.status === 403) {
+      throw new Error('Token Vercel inválido ou sem permissões. Verifique em vercel.com/account/tokens.');
+    }
     const error = await res.json().catch(() => ({}));
-    throw new Error(error.error?.message || 'Token Vercel inválido');
+    throw new Error(error.error?.message || 'Erro ao validar token Vercel');
   }
 
   const data = await res.json();
@@ -173,12 +178,29 @@ async function validateVercelToken(token: string): Promise<{ projectId: string; 
 }
 
 async function validateQStashToken(token: string): Promise<void> {
-  const res = await fetch('https://qstash.upstash.io/v2/schedules', {
+  // Detecta região via JWT (mesmo padrão de /api/installer/qstash/validate)
+  let qstashBaseUrl = 'https://qstash.upstash.io';
+  try {
+    const payloadB64 = token.split('.')[1];
+    if (payloadB64) {
+      const payload = JSON.parse(Buffer.from(payloadB64, 'base64url').toString());
+      if (payload.iss && typeof payload.iss === 'string') {
+        qstashBaseUrl = payload.iss.replace(/\/$/, '');
+      }
+    }
+  } catch {
+    // JWT indecodificável: usa fallback genérico
+  }
+
+  const res = await fetchWithTimeout(`${qstashBaseUrl}/v2/schedules`, {
     headers: { Authorization: `Bearer ${token}` },
   });
 
   if (!res.ok) {
-    throw new Error('Token QStash inválido');
+    if (res.status === 401 || res.status === 403) {
+      throw new Error('Token QStash inválido. Copie o QSTASH_TOKEN do console Upstash → QStash → Details.');
+    }
+    throw new Error('Erro ao validar token QStash');
   }
 }
 
@@ -198,7 +220,7 @@ async function validateRedisCredentials(url: string, token: string): Promise<voi
     throw new Error(message);
   }
 
-  const res = await fetch(`${normalizedUrl}/ping`, {
+  const res = await fetchWithTimeout(`${normalizedUrl}/ping`, {
     headers: { Authorization: `Bearer ${token}` },
   });
 
@@ -233,7 +255,7 @@ async function findOrCreateSupabaseProject(
   const dbPass = Array.from(array, (b) => charset[b % charset.length]).join('');
 
   // Get first org
-  const orgsRes = await fetch('https://api.supabase.com/v1/organizations', {
+  const orgsRes = await fetchWithTimeout('https://api.supabase.com/v1/organizations', {
     headers: { Authorization: `Bearer ${pat}` },
   });
 
@@ -766,9 +788,29 @@ export async function POST(req: Request) {
       });
       if (stack) console.error('[provision] ❌ Stack:', stack);
 
+      // Derivar errorType a partir do step que falhou e se foi timeout de rede
+      const isTimeout = err instanceof Error && err.message.toLowerCase().includes('timeout');
+      const errorTypeMap: Record<string, InstallErrorType> = {
+        validate_vercel: 'vercel_token',
+        validate_supabase: 'supabase_pat',
+        validate_qstash: 'qstash_token',
+      };
+
+      // Para redis, distingue URL vs token pelo conteúdo da mensagem de erro
+      let derivedErrorType: InstallErrorType;
+      if (currentStep.id === 'validate_redis') {
+        const msg = message.toLowerCase();
+        derivedErrorType = isTimeout ? 'network'
+          : msg.includes('token') || msg.includes('inválido') || msg.includes('permiss') ? 'redis_token'
+          : 'redis_url';
+      } else {
+        derivedErrorType = isTimeout ? 'network' : (errorTypeMap[currentStep.id] ?? 'unknown');
+      }
+
       await sendEvent({
         type: 'error',
         error: message,
+        errorType: derivedErrorType,
         errorDetails: stack,
         returnToStep: currentStep.returnToStep,
       });

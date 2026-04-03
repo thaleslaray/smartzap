@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { fetchWithTimeout } from '@/lib/installer/fetch-with-timeout';
 
 /**
  * POST /api/installer/redis/validate
@@ -27,25 +28,27 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Validar formato da URL
-    if (!restUrl.includes('.upstash.io')) {
+    // Validar formato da URL — regex garante domínio real, não substring
+    const trimmedUrl = restUrl.trim();
+    const validUpstashUrl = /^https:\/\/[a-z0-9][a-z0-9-]*\.upstash\.io\/?$/i;
+    if (!validUpstashUrl.test(trimmedUrl)) {
       return NextResponse.json(
-        { error: 'URL deve ser do Upstash (*.upstash.io)' },
+        { error: 'URL inválida. Formato esperado: https://[nome].upstash.io' },
         { status: 400 }
       );
     }
 
     // Normalizar URL (remover trailing slash)
-    const normalizedUrl = restUrl.replace(/\/$/, '');
+    const normalizedUrl = trimmedUrl.replace(/\/$/, '');
 
     // Fazer PING via REST API
     // Upstash REST API: GET {url}/ping ou POST {url} com command ["PING"]
-    const pingRes = await fetch(`${normalizedUrl}/ping`, {
+    const pingRes = await fetchWithTimeout(`${normalizedUrl}/ping`, {
       method: 'GET',
       headers: {
         Authorization: `Bearer ${restToken}`,
       },
-    });
+    }, 8_000); // Redis PING deve responder em < 8s
 
     if (!pingRes.ok) {
       if (pingRes.status === 401 || pingRes.status === 403) {

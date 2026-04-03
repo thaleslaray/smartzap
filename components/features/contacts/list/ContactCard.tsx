@@ -1,7 +1,7 @@
 'use client'
 
 import React from 'react'
-import { Edit2, Trash2, Tag, Check, User } from 'lucide-react'
+import { Edit2, Trash2, Tag, Check, User, ShieldOff } from 'lucide-react'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { StatusBadge } from '@/components/ui/status-badge'
 import { Button } from '@/components/ui/button'
@@ -20,6 +20,7 @@ interface ContactCardProps {
   onToggleSelect: (id: string) => void
   onEdit: (contact: Contact) => void
   onDelete: (id: string) => void
+  onUnsuppress?: (phone: string) => void
 }
 
 export const ContactCard = React.memo(
@@ -29,7 +30,8 @@ export const ContactCard = React.memo(
     showSuppressionDetails,
     onToggleSelect,
     onEdit,
-    onDelete
+    onDelete,
+    onUnsuppress
   }: ContactCardProps) {
     const displayName = contact.name || contact.phone
 
@@ -74,23 +76,39 @@ export const ContactCard = React.memo(
           </div>
 
           {/* Status */}
-          <div className="shrink-0">
+          <div className="shrink-0 flex items-center gap-1">
             <StatusBadge
               status={
-                contact.status === ContactStatus.OPT_IN
-                  ? 'success'
-                  : contact.status === ContactStatus.OPT_OUT
-                    ? 'error'
-                    : 'default'
+                contact.status === ContactStatus.SUPPRESSED ? 'error' :
+                contact.status === ContactStatus.OPT_IN ? 'success' :
+                contact.status === ContactStatus.OPT_OUT ? 'error' : 'default'
               }
               size="sm"
             >
-              {contact.status === ContactStatus.OPT_IN
-                ? 'OPT_IN'
-                : contact.status === ContactStatus.OPT_OUT
-                  ? 'OPT_OUT'
-                  : 'DESCONHECIDO'}
+              {contact.status === ContactStatus.SUPPRESSED ? 'SUPRIMIDO' :
+               contact.status === ContactStatus.OPT_IN ? 'OPT_IN' :
+               contact.status === ContactStatus.OPT_OUT ? 'OPT_OUT' : 'DESCONHECIDO'}
             </StatusBadge>
+            {/* Botão de desuprimir */}
+            {contact.status === ContactStatus.SUPPRESSED && onUnsuppress && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    className="shrink-0 text-red-400 hover:text-red-300 hover:bg-red-500/20"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onUnsuppress(contact.phone)
+                    }}
+                    aria-label="Remover supressão"
+                  >
+                    <ShieldOff size={14} />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent><p>Remover supressão</p></TooltipContent>
+              </Tooltip>
+            )}
           </div>
         </div>
 
@@ -196,6 +214,7 @@ interface ContactCardListProps {
   onToggleSelect: (id: string) => void
   onEditContact: (contact: Contact) => void
   onDeleteClick: (id: string) => void
+  onUnsuppress?: (phone: string) => void
 }
 
 export const ContactCardList: React.FC<ContactCardListProps> = ({
@@ -205,7 +224,8 @@ export const ContactCardList: React.FC<ContactCardListProps> = ({
   selectedIds,
   onToggleSelect,
   onEditContact,
-  onDeleteClick
+  onDeleteClick,
+  onUnsuppress
 }) => {
   if (isLoading) {
     return (
@@ -240,6 +260,7 @@ export const ContactCardList: React.FC<ContactCardListProps> = ({
           onToggleSelect={onToggleSelect}
           onEdit={onEditContact}
           onDelete={onDeleteClick}
+          onUnsuppress={onUnsuppress}
         />
       ))}
     </div>
