@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabase'
+import { supabase, getSupabaseAdmin } from '@/lib/supabase'
 import { getWhatsAppCredentials } from '@/lib/whatsapp-credentials'
 import { fetchWithTimeout } from '@/lib/server-http'
 
@@ -99,28 +99,18 @@ export async function GET() {
       }
     } else {
       // Fallback: estimar baseado em contagem de rows (sem PAT configurado)
-      const { createClient } = await import('@supabase/supabase-js')
-      const serviceKey = process.env.SUPABASE_SECRET_KEY
+      const supabaseAdmin = getSupabaseAdmin()
+      if (!supabaseAdmin) throw new Error('Missing Supabase credentials in Usage API')
 
-      if (!serviceKey || !supabaseUrl) {
-        throw new Error('Missing Supabase credentials in Usage API')
-      }
-
-      const supabaseAdmin = createClient(supabaseUrl, serviceKey, {
-        auth: { persistSession: false }
-      })
-
-      const { count: campaignsCount } = await supabaseAdmin
-        .from('campaigns')
-        .select('*', { count: 'exact', head: true })
-
-      const { count: contactsCount } = await supabaseAdmin
-        .from('contacts')
-        .select('*', { count: 'exact', head: true })
-
-      const { count: campaignContactsCount } = await supabaseAdmin
-        .from('campaign_contacts')
-        .select('*', { count: 'exact', head: true })
+      const [
+        { count: campaignsCount },
+        { count: contactsCount },
+        { count: campaignContactsCount },
+      ] = await Promise.all([
+        supabaseAdmin.from('campaigns').select('*', { count: 'exact', head: true }),
+        supabaseAdmin.from('contacts').select('*', { count: 'exact', head: true }),
+        supabaseAdmin.from('campaign_contacts').select('*', { count: 'exact', head: true }),
+      ])
 
       const totalRows =
         (campaignsCount || 0) +

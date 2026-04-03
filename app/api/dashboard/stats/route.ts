@@ -10,7 +10,7 @@ export async function GET() {
     const { data: viewData, error: viewError } = await supabase
       .from('campaign_stats_summary')
       .select('*')
-      .single()
+      .maybeSingle()
 
     // View exists and returned data - use optimized path
     if (!viewError && viewData) {

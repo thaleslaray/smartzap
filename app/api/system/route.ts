@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getWhatsAppCredentials } from '@/lib/whatsapp-credentials'
-import { supabase } from '@/lib/supabase'
+import { supabase, getSupabaseAdmin } from '@/lib/supabase'
 import { fetchWithTimeout } from '@/lib/server-http'
 
 /**
@@ -168,15 +168,8 @@ export async function GET() {
         try {
           const start = Date.now()
 
-          const { createClient } = await import('@supabase/supabase-js')
-          const serviceKey = process.env.SUPABASE_SECRET_KEY
-          const url = process.env.NEXT_PUBLIC_SUPABASE_URL
-
-          if (!serviceKey || !url) throw new Error('Missing Supabase Secret Key')
-
-          const supabaseAdmin = createClient(url, serviceKey, {
-            auth: { persistSession: false }
-          })
+          const supabaseAdmin = getSupabaseAdmin()
+          if (!supabaseAdmin) throw new Error('Missing Supabase credentials')
 
           const { error } = await supabaseAdmin.from('campaigns').select('id').limit(1)
           if (error && !error.message.includes('No rows')) throw error
