@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { Route, Info, Loader2, Check, ExternalLink, ChevronDown, Eye, EyeOff, Key } from 'lucide-react';
+import { Route, Info, Loader2, Check, ChevronDown } from 'lucide-react';
 import { toast } from 'sonner';
 import { DEFAULT_AI_GATEWAY, type AiGatewayConfig } from '@/lib/ai/ai-center-defaults';
 
@@ -28,9 +28,6 @@ export function AIGatewayPanel() {
   const [saving, setSaving] = useState(false);
   const [config, setConfig] = useState<AiGatewayConfig>(DEFAULT_AI_GATEWAY);
   const [showFallbackConfig, setShowFallbackConfig] = useState(false);
-  const [apiKeyInput, setApiKeyInput] = useState('');
-  const [showApiKey, setShowApiKey] = useState(false);
-  const [savingApiKey, setSavingApiKey] = useState(false);
 
   const fetchConfig = useCallback(async () => {
     try {
@@ -40,10 +37,6 @@ export function AIGatewayPanel() {
 
       if (data.gateway) {
         setConfig(data.gateway);
-        // Mostra placeholder se já tem key salva (não expõe o valor)
-        if (data.gateway.apiKey) {
-          setApiKeyInput('');
-        }
       }
     } catch (error) {
       console.error('Error fetching AI Gateway config:', error);
@@ -101,29 +94,6 @@ export function AIGatewayPanel() {
     }
 
     await handleSaveConfig({ enabled });
-  };
-
-  const handleSaveApiKey = async () => {
-    if (!apiKeyInput.trim()) return;
-    setSavingApiKey(true);
-    try {
-      const success = await handleSaveConfig({ apiKey: apiKeyInput.trim() });
-      if (success) {
-        setConfig(prev => ({ ...prev, apiKey: apiKeyInput.trim() }));
-        setApiKeyInput('');
-        setShowApiKey(false);
-      }
-    } finally {
-      setSavingApiKey(false);
-    }
-  };
-
-  const handleRemoveApiKey = async () => {
-    const success = await handleSaveConfig({ apiKey: '' });
-    if (success) {
-      setConfig(prev => ({ ...prev, apiKey: '' }));
-      setApiKeyInput('');
-    }
   };
 
   const handleToggleFallbackModel = (modelId: string) => {
@@ -189,75 +159,8 @@ export function AIGatewayPanel() {
         </div>
       </div>
 
-      {/* Config Status / API Key Input */}
+      {/* Config */}
       <div className="mt-5 space-y-4">
-        {/* Autenticação: API Key estática (recomendado) */}
-        <div className="rounded-xl border border-[var(--ds-border-default)] bg-[var(--ds-bg-elevated)] p-4 space-y-3">
-          <div className="flex items-center gap-2">
-            <Key className="size-4 text-violet-400" />
-            <div className="text-sm font-medium text-[var(--ds-text-primary)]">API Key do Gateway</div>
-            {config.apiKey && (
-              <span className="rounded-full bg-emerald-500/20 px-2 py-0.5 text-xs font-medium text-emerald-300">
-                Configurada
-              </span>
-            )}
-          </div>
-          <p className="text-xs text-[var(--ds-text-muted)] leading-relaxed">
-            Chave estática obtida em{' '}
-            <a
-              href="https://vercel.com/docs/ai-gateway"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-violet-400 hover:text-violet-300 inline-flex items-center gap-0.5 hover:underline"
-            >
-              vercel.com/docs/ai-gateway <ExternalLink size={10} />
-            </a>
-            . Não expira, ao contrário do token OIDC automático que expira a cada 12-24h.
-          </p>
-          <div className="flex gap-2">
-            <div className="relative flex-1">
-              <input
-                type={showApiKey ? 'text' : 'password'}
-                value={apiKeyInput}
-                onChange={e => setApiKeyInput(e.target.value)}
-                placeholder={config.apiKey ? '••••••••  (já configurada — cole para substituir)' : 'Cole sua AI_GATEWAY_API_KEY aqui'}
-                className="w-full rounded-lg border border-[var(--ds-border-default)] bg-[var(--ds-bg-surface)] px-3 py-2 pr-10 text-sm text-[var(--ds-text-primary)] placeholder:text-[var(--ds-text-muted)] focus:border-violet-500/50 focus:outline-none focus:ring-1 focus:ring-violet-500/20"
-                onKeyDown={e => e.key === 'Enter' && handleSaveApiKey()}
-              />
-              <button
-                type="button"
-                onClick={() => setShowApiKey(v => !v)}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[var(--ds-text-muted)] hover:text-[var(--ds-text-secondary)]"
-              >
-                {showApiKey ? <EyeOff size={14} /> : <Eye size={14} />}
-              </button>
-            </div>
-            <button
-              type="button"
-              onClick={handleSaveApiKey}
-              disabled={!apiKeyInput.trim() || savingApiKey}
-              className="shrink-0 rounded-lg bg-violet-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-violet-500 disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              {savingApiKey ? <Loader2 size={14} className="animate-spin" /> : 'Salvar'}
-            </button>
-            {config.apiKey && (
-              <button
-                type="button"
-                onClick={handleRemoveApiKey}
-                disabled={saving}
-                className="shrink-0 rounded-lg border border-red-500/30 px-3 py-2 text-xs text-red-400 transition hover:bg-red-500/10 disabled:opacity-40"
-              >
-                Remover
-              </button>
-            )}
-          </div>
-          {!config.apiKey && (
-            <p className="text-xs text-[var(--ds-text-muted)]">
-              Alternativa: configure <code className="bg-[var(--ds-bg-hover)] px-1.5 py-0.5 rounded">AI_GATEWAY_API_KEY</code> como env var na Vercel, ou use <code className="bg-[var(--ds-bg-hover)] px-1.5 py-0.5 rounded">vercel env pull</code> para auth OIDC local.
-            </p>
-          )}
-        </div>
-
         {/* BYOK Toggle */}
         <div className="rounded-xl border border-[var(--ds-border-default)] bg-[var(--ds-bg-elevated)] p-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
