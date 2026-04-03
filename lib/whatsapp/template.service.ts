@@ -2,7 +2,7 @@ import { CreateTemplateSchema } from './validators/template.schema'
 import { getWhatsAppCredentials } from '@/lib/whatsapp-credentials'
 import { templateProjectDb } from '@/lib/supabase-db'
 import { CreateTemplateInput, TemplateCreationResult } from './types'
-import { MetaButton, MetaHeaderComponent, MetaBodyComponent, MetaCarouselComponent, MetaTemplatePayload } from './types'
+import { MetaButton, MetaHeaderComponent, MetaHeaderFormat, MetaBodyComponent, MetaFooterComponent, MetaCarouselComponent, MetaCarouselCard, MetaComponent, MetaTemplatePayload } from './types'
 import { MetaAPIError } from './errors'
 import { GeneratedTemplate } from '@/lib/ai/services/template-agent'
 
@@ -72,14 +72,14 @@ export class TemplateService {
                 category: metaPayload.category
             }
 
-        } catch (error: any) {
+        } catch (error: unknown) {
             // If it's already our typed error, rethrow
             if (error instanceof MetaAPIError) {
                 throw error
             }
             // If network error or other generic error
             console.error('[TemplateService] Network/Unknown Error:', error)
-            throw new Error(error.message || 'Falha na comunicação com a Meta')
+            throw new Error(error instanceof Error ? error.message : 'Falha na comunicação com a Meta')
         }
     }
 
@@ -143,8 +143,8 @@ export class TemplateService {
 
         const input = parsed.data as unknown as CreateTemplateInput
 
-        const components: any[] = []
-        const parameterFormat = (input as any).parameter_format === 'named' ? 'named' : 'positional'
+        const components: MetaComponent[] = []
+        const parameterFormat = input.parameter_format === 'named' ? 'named' : 'positional'
         const metaParameterFormat = parameterFormat === 'named' ? 'NAMED' : 'POSITIONAL'
         const isNamed = parameterFormat === 'named'
 
@@ -152,7 +152,7 @@ export class TemplateService {
         if (input.header) {
             const headerComponent: MetaHeaderComponent = {
                 type: 'HEADER',
-                format: input.header.format as any
+                format: input.header.format as MetaHeaderFormat
             }
 
             if (input.header.format === 'TEXT') {
@@ -257,7 +257,7 @@ export class TemplateService {
             components.push(bodyComponent)
         }
 
-        const hasCarousel = !!(input.carousel && (input as any).carousel?.cards && (input as any).carousel.cards.length > 0)
+        const hasCarousel = !!(input.carousel && input.carousel.cards && input.carousel.cards.length > 0)
         if (!bodyText && !hasCarousel) {
             throw new Error('Template precisa de BODY (content/body.text) ou CAROUSEL (cards).')
         }
@@ -268,13 +268,12 @@ export class TemplateService {
 
         // D. Footer
         if (input.footer && input.footer.text) {
-            const footerComponent: any = {
+            const footerComponent: MetaFooterComponent = {
                 type: 'FOOTER',
-                text: input.footer.text
-            }
-
-            if (typeof input.code_expiration_minutes === 'number') {
-                footerComponent.code_expiration_minutes = input.code_expiration_minutes
+                text: input.footer.text,
+                ...(typeof input.code_expiration_minutes === 'number'
+                    ? { code_expiration_minutes: input.code_expiration_minutes }
+                    : {}),
             }
 
             components.push(footerComponent)
@@ -306,7 +305,7 @@ export class TemplateService {
             }
 
             for (const btn of input.buttons) {
-                validButtons.push(this.buildMetaButton(btn as any, parameterFormat))
+                validButtons.push(this.buildMetaButton(btn, parameterFormat))
             }
 
             if (validButtons.length > 0) {
@@ -321,51 +320,53 @@ export class TemplateService {
         if (hasCarousel) {
             const carouselComponent: MetaCarouselComponent = {
                 type: 'CAROUSEL',
-                cards: this.buildCarouselCards((input as any).carousel.cards, parameterFormat)
+                cards: this.buildCarouselCards(input.carousel!.cards, parameterFormat)
             }
             components.push(carouselComponent)
         }
 
-        const payload: any = {
+        const payload: MetaTemplatePayload = {
             name: input.name,
             language: input.language,
             category: input.category,
             // Meta expects this field when using named placeholders; harmless for positional when omitted, but we send for explicitness.
             parameter_format: metaParameterFormat,
-            components: components
-        }
-
-        if (typeof input.message_send_ttl_seconds === 'number') {
-            payload.message_send_ttl_seconds = input.message_send_ttl_seconds
+            components: components,
+            ...(typeof input.message_send_ttl_seconds === 'number'
+                ? { message_send_ttl_seconds: input.message_send_ttl_seconds }
+                : {}),
         }
 
         return payload
     }
 
-    private buildMetaButton(btn: any, parameterFormat: 'positional' | 'named'): MetaButton {
+    private buildMetaButton(btn: Record<string, unknown>, parameterFormat: 'positional' | 'named'): MetaButton {
+        const text = btn.text as string | undefined
+        const url = btn.url as string | undefined
+        const example = btn.example as string | string[] | undefined
+
         if (btn.type === 'URL') {
-            const url = this.normalizeUrl(btn.url || '')
+            const normalizedUrl = this.normalizeUrl(url || '')
             // Check for invalid Naked Variables
-            const nakedVarMatch = url.match(/^\{\{\d+\}\}$/)
+            const nakedVarMatch = normalizedUrl.match(/^\{\{\d+\}\}$/)
             if (nakedVarMatch) {
-                throw new Error(`URL inválida no botão "${btn.text}". Domínio obrigatório (ex: https://site.com/{{1}}).`)
+                throw new Error(`URL inválida no botão "${text}". Domínio obrigatório (ex: https://site.com/{{1}}).`)
             }
 
-            if (parameterFormat === 'named' && url.includes('{{')) {
+            if (parameterFormat === 'named' && normalizedUrl.includes('{{')) {
                 throw new Error('parameter_format=named não suporta URL dinâmica em botões. Use positional ou URL fixa.')
             }
 
             const metaBtn: MetaButton = {
                 type: 'URL',
-                text: btn.text,
-                url: url
+                text,
+                url: normalizedUrl
             }
 
-            if (url.includes('{{1}}')) {
-                const provided = btn.example
-                const exampleArr = Array.isArray(provided)
-                    ? provided
-                    : (typeof provided === 'string' && provided.trim() ? [provided.trim()] : null)
+            if (normalizedUrl.includes('{{1}}')) {
+                const exampleArr = Array.isArray(example)
+                    ? example
+                    : (typeof example === 'string' && example.trim() ? [example.trim()] : null)
 
                 metaBtn.example = exampleArr || ['exemplo']
             }
@@ -376,21 +377,21 @@ export class TemplateService {
         if (btn.type === 'PHONE_NUMBER') {
             return {
                 type: 'PHONE_NUMBER',
-                text: btn.text,
-                phone_number: btn.phone_number
+                text,
+                phone_number: btn.phone_number as string
             }
         }
 
         if (btn.type === 'QUICK_REPLY') {
             return {
                 type: 'QUICK_REPLY',
-                text: btn.text
+                text
             }
         }
 
         if (btn.type === 'COPY_CODE') {
-            const exampleValue = btn.example
-                ? (Array.isArray(btn.example) ? btn.example : [btn.example])
+            const exampleValue = example
+                ? (Array.isArray(example) ? example : [example as string])
                 : ['CODE123']
             return {
                 type: 'COPY_CODE',
@@ -409,10 +410,10 @@ export class TemplateService {
             return {
                 type: 'OTP',
                 otp_type: otpType,
-                ...(btn.text ? { text: btn.text } : {}),
-                ...(btn.autofill_text ? { autofill_text: btn.autofill_text } : {}),
-                ...(btn.package_name ? { package_name: btn.package_name } : {}),
-                ...(btn.signature_hash ? { signature_hash: btn.signature_hash } : {}),
+                ...(text ? { text } : {}),
+                ...(btn.autofill_text ? { autofill_text: btn.autofill_text as string } : {}),
+                ...(btn.package_name ? { package_name: btn.package_name as string } : {}),
+                ...(btn.signature_hash ? { signature_hash: btn.signature_hash as string } : {}),
             }
         }
 
@@ -420,51 +421,56 @@ export class TemplateService {
             if (!btn.flow_id) throw new Error('Botão FLOW requer flow_id.')
             return {
                 type: 'FLOW',
-                text: btn.text,
-                flow_id: btn.flow_id,
-                ...(btn.flow_action ? { flow_action: btn.flow_action } : {}),
-                ...(btn.navigate_screen ? { navigate_screen: btn.navigate_screen } : {}),
+                text,
+                flow_id: btn.flow_id as string,
+                ...(btn.flow_action ? { flow_action: btn.flow_action as string } : {}),
+                ...(btn.navigate_screen ? { navigate_screen: btn.navigate_screen as string } : {}),
             }
         }
 
         // Qualquer outro tipo não é suportado pela Meta API para templates
-        throw new Error(`Tipo de botão "${btn.type}" não é suportado pela Meta para templates. Use: Resposta Rápida, URL, Ligar, Copiar Código, OTP ou MiniApp (Flow).`)
+        throw new Error(`Tipo de botão "${String(btn.type)}" não é suportado pela Meta para templates. Use: Resposta Rápida, URL, Ligar, Copiar Código, OTP ou MiniApp (Flow).`)
     }
 
-    private buildCarouselCards(cards: any[], parameterFormat: 'positional' | 'named') {
-        return (cards || []).map((card: any) => {
+    private buildCarouselCards(cards: unknown[], parameterFormat: 'positional' | 'named'): MetaCarouselCard[] {
+        return (cards || []).map((rawCard: unknown) => {
+            const card = rawCard as Record<string, unknown> | null
             // Já está no formato Meta (cards[].components)
-            if (card && Array.isArray(card.components)) return card
+            if (card && Array.isArray(card.components)) return card as unknown as MetaCarouselCard
 
             // Formato "amigável" (schema): { header, body, buttons }
-            const components: any[] = []
+            const components: MetaComponent[] = []
 
-            if (card?.header) {
+            const header = card?.header as Record<string, unknown> | undefined
+            if (header) {
                 components.push({
                     type: 'HEADER',
-                    format: card.header.format,
-                    example: card.header.example
+                    format: header.format as MetaHeaderFormat,
+                    example: header.example as MetaHeaderComponent['example'],
                 })
             }
 
-            if (card?.body?.text) {
-                const text = parameterFormat === 'named' ? card.body.text : this.renumberVariables(card.body.text)
-                const body: any = {
+            const body = card?.body as Record<string, unknown> | undefined
+            if (body?.text) {
+                const text = parameterFormat === 'named' ? body.text as string : this.renumberVariables(body.text as string)
+                const bodyComponent: MetaBodyComponent = {
                     type: 'BODY',
                     text,
                 }
-                if (card.body.example?.body_text) body.example = { body_text: card.body.example.body_text }
-                components.push(body)
+                const bodyExample = body.example as Record<string, unknown> | undefined
+                if (bodyExample?.body_text) bodyComponent.example = { body_text: bodyExample.body_text as string[][] }
+                components.push(bodyComponent)
             }
 
-            if (Array.isArray(card?.buttons) && card.buttons.length) {
+            const buttons = card?.buttons as Record<string, unknown>[] | undefined
+            if (Array.isArray(buttons) && buttons.length) {
                 components.push({
                     type: 'BUTTONS',
-                    buttons: card.buttons.map((b: any) => this.buildMetaButton(b, parameterFormat)).slice(0, 2)
+                    buttons: buttons.map((b: Record<string, unknown>) => this.buildMetaButton(b, parameterFormat)).slice(0, 2)
                 })
             }
 
-            return { components }
+            return { components } as MetaCarouselCard
         })
     }
 

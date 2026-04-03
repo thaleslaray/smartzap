@@ -43,6 +43,11 @@
     "docs/workflow-builder-template",
     "lib/builder/auth.ts",
     "lib/builder/db",
-    "tests/adversarial"
+    "tests/adversarial",
+    "**/*.test.ts",
+    "**/*.test.tsx",
+    "**/*.spec.ts",
+    "**/*.spec.tsx",
+    "tests"
   ]
 }

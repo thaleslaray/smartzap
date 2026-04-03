@@ -16,6 +16,7 @@ import type {
   InstallAction,
   InstallStep,
   InstallData,
+  InstallErrorType,
 } from './types';
 import { EMPTY_INSTALL_DATA, stepValidators, assertNever, DEBUG, SCHEMA_VERSION } from './types';
 
@@ -237,6 +238,7 @@ export function installReducer(state: InstallState, action: InstallAction): Inst
         data: 'data' in state ? state.data : EMPTY_INSTALL_DATA,
         returnToStep: action.returnToStep,
         error: action.error,
+        errorType: action.errorType,
         errorDetails: action.errorDetails,
       };
     }
@@ -320,6 +322,7 @@ export function isError(state: InstallState): state is {
   data: InstallData;
   returnToStep: InstallStep;
   error: string;
+  errorType?: InstallErrorType;
   errorDetails?: string;
 } {
   return state.phase === 'error';

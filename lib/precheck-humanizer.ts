@@ -181,6 +181,12 @@ export function humanizePrecheckReason(
     return { title: 'Telefone inválido' };
   }
 
+  // IMPORTANTE: verificar supressão ANTES de opt-out, pois a razão de supressão
+  // pode conter "opt-out" no texto explicativo (ex: "Usuário solicitou opt-out via mensagem inbound")
+  if (text.toLowerCase().includes('suprimido') || text.toLowerCase().includes('suppressed')) {
+    return { title: 'Telefone suprimido globalmente' };
+  }
+
   if (text.toLowerCase().includes('opt-out') || text.toLowerCase().includes('opt out')) {
     return { title: 'Contato opt-out (não quer receber mensagens)' };
   }

@@ -2598,7 +2598,6 @@ const workflowHandler = serve<CampaignWorkflowInput>(
 
       return explicitAppUrl || productionUrl || deploymentUrl
     })(),
-    retries: 3,
   }
 )
 

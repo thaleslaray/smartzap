@@ -281,6 +281,24 @@ describe('precheck-humanizer', () => {
       });
     });
 
+    describe('supressão global', () => {
+      it.each([
+        'Telefone suprimido globalmente',
+        'SUPPRESSED',
+        'Telefone suprimido manualmente',
+      ])('should detect suppression reason: "%s"', (reason) => {
+        const result = humanizePrecheckReason(reason);
+        expect(result.title).toBe('Telefone suprimido globalmente');
+      });
+
+      it('should prioritize suppression over opt-out when both keywords present', () => {
+        // Este é o caso do bug: a razão de supressão contém "opt-out" no texto explicativo
+        const reason = 'Telefone suprimido globalmente: Usuário solicitou opt-out via mensagem inbound';
+        const result = humanizePrecheckReason(reason);
+        expect(result.title).toBe('Telefone suprimido globalmente');
+      });
+    });
+
     describe('fallback - unknown reasons', () => {
       it('should return original text for unknown reason', () => {
         const reason = 'Algum motivo desconhecido';

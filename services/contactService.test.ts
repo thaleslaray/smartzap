@@ -3,10 +3,6 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { contactService } from './contactService'
 import { ContactStatus, type Contact } from '../types'
 
-// Mock global fetch
-const mockFetch: ReturnType<typeof vi.fn> = vi.fn()
-const originalFetch = globalThis.fetch
-
 vi.mock('../lib/logger', () => ({
   logger: {
     info: vi.fn(),
@@ -30,29 +26,23 @@ vi.mock('../lib/csv-parser', () => ({
   generateImportReport: vi.fn(() => 'report'),
 }))
 
-const createMockResponse = (data: unknown, options?: { ok?: boolean; status?: number; statusText?: string }) => ({
-  ok: options?.ok ?? true,
-  status: options?.status ?? 200,
-  statusText: options?.statusText ?? 'OK',
-  json: vi.fn().mockResolvedValue(data),
-  text: vi.fn().mockResolvedValue(JSON.stringify(data)),
-})
+import { createMockFetchResponse, setupFetchMock } from '@/tests/helpers'
 
 describe('contactService', () => {
+  const mockFetch = setupFetchMock()
+
   beforeEach(() => {
     vi.clearAllMocks()
-    ;(globalThis as any).fetch = mockFetch
   })
 
   afterEach(() => {
     vi.resetAllMocks()
-    ;(globalThis as any).fetch = originalFetch
   })
 
   describe('list', () => {
     it('deve montar query com filtros', async () => {
       const mockResult = { data: [], total: 0, limit: 10, offset: 0 }
-      mockFetch.mockResolvedValueOnce(createMockResponse(mockResult))
+      mockFetch.mockResolvedValueOnce(createMockFetchResponse(mockResult))
 
       await contactService.list({
         limit: 10,
@@ -70,7 +60,7 @@ describe('contactService', () => {
 
     it('nao deve incluir status/tag quando ALL', async () => {
       const mockResult = { data: [], total: 0, limit: 10, offset: 0 }
-      mockFetch.mockResolvedValueOnce(createMockResponse(mockResult))
+      mockFetch.mockResolvedValueOnce(createMockFetchResponse(mockResult))
 
       await contactService.list({ limit: 10, offset: 0, status: 'ALL', tag: 'ALL' })
 
@@ -78,7 +68,7 @@ describe('contactService', () => {
     })
 
     it('deve lançar erro quando fetch falha', async () => {
-      mockFetch.mockResolvedValueOnce(createMockResponse(null, { ok: false }))
+      mockFetch.mockResolvedValueOnce(createMockFetchResponse(null, { ok: false }))
 
       await expect(contactService.list({ limit: 10, offset: 0 })).rejects.toThrow('Falha ao buscar contatos')
     })
@@ -93,7 +83,7 @@ describe('contactService', () => {
         tags: [],
       }
 
-      mockFetch.mockResolvedValueOnce(createMockResponse({ id: 'c1', ...contact }))
+      mockFetch.mockResolvedValueOnce(createMockFetchResponse({ id: 'c1', ...contact }))
 
       await contactService.add(contact)
 
@@ -127,7 +117,7 @@ describe('contactService', () => {
 
   describe('importFromContent', () => {
     it('deve importar contatos e gerar relatório', async () => {
-      mockFetch.mockResolvedValueOnce(createMockResponse({ imported: 1 }))
+      mockFetch.mockResolvedValueOnce(createMockFetchResponse({ imported: 1 }))
 
       const result = await contactService.importFromContent('name,phone\nAna,+5511999999999')
 
@@ -143,7 +133,7 @@ describe('contactService', () => {
 
   describe('deleteMany', () => {
     it('deve deletar vários contatos', async () => {
-      mockFetch.mockResolvedValueOnce(createMockResponse({ deleted: 2 }))
+      mockFetch.mockResolvedValueOnce(createMockFetchResponse({ deleted: 2 }))
 
       const deleted = await contactService.deleteMany(['c1', 'c2'])
 
@@ -153,6 +143,31 @@ describe('contactService', () => {
         body: JSON.stringify({ ids: ['c1', 'c2'] }),
       })
       expect(deleted).toBe(2)
+    })
+  })
+
+  describe('bulkUpdateTags', () => {
+    it('deve chamar API com ids, tagsToAdd e tagsToRemove e retornar updated', async () => {
+      mockFetch.mockResolvedValueOnce(createMockFetchResponse({ updated: 3 }))
+
+      const updated = await contactService.bulkUpdateTags(['c1', 'c2', 'c3'], ['vip'], ['free'])
+
+      expect(mockFetch).toHaveBeenCalledWith('/api/contacts/bulk-tags', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: ['c1', 'c2', 'c3'], tagsToAdd: ['vip'], tagsToRemove: ['free'] }),
+      })
+      expect(updated).toBe(3)
+    })
+
+    it('deve lançar erro quando API retorna status não-ok', async () => {
+      mockFetch.mockResolvedValueOnce(
+        createMockFetchResponse({ error: 'Contatos não encontrados' }, { ok: false })
+      )
+
+      await expect(
+        contactService.bulkUpdateTags(['c1'], ['vip'], [])
+      ).rejects.toThrow('Contatos não encontrados')
     })
   })
 })

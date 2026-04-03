@@ -19,32 +19,23 @@ vi.mock('../lib/storage', () => ({
 import { storage } from '../lib/storage'
 import { settingsService } from './settingsService'
 
-// Mock global fetch
-const mockFetch: ReturnType<typeof vi.fn> = vi.fn()
-const originalFetch = globalThis.fetch
-
-const createMockResponse = (data: unknown, options?: { ok?: boolean; status?: number; statusText?: string }) => ({
-  ok: options?.ok ?? true,
-  status: options?.status ?? 200,
-  statusText: options?.statusText ?? 'OK',
-  json: vi.fn().mockResolvedValue(data),
-})
+import { createMockFetchResponse, setupFetchMock } from '@/tests/helpers'
 
 describe('settingsService', () => {
+  const mockFetch = setupFetchMock()
+
   beforeEach(() => {
     vi.clearAllMocks()
-    ;(globalThis as any).fetch = mockFetch
   })
 
   afterEach(() => {
     vi.resetAllMocks()
-    ;(globalThis as any).fetch = originalFetch
   })
 
   describe('getAll', () => {
     it('deve buscar todos os settings', async () => {
       const payload = { timestamp: 'now' }
-      mockFetch.mockResolvedValueOnce(createMockResponse(payload))
+      mockFetch.mockResolvedValueOnce(createMockFetchResponse(payload))
 
       const result = await settingsService.getAll()
 
@@ -55,7 +46,7 @@ describe('settingsService', () => {
 
   describe('get', () => {
     it('deve retornar settings locais quando servidor não está conectado', async () => {
-      mockFetch.mockResolvedValueOnce(createMockResponse({ isConnected: false }))
+      mockFetch.mockResolvedValueOnce(createMockFetchResponse({ isConnected: false }))
 
       const result = await settingsService.get()
 
@@ -64,7 +55,7 @@ describe('settingsService', () => {
     })
 
     it('deve combinar settings quando servidor retorna credenciais', async () => {
-      mockFetch.mockResolvedValueOnce(createMockResponse({
+      mockFetch.mockResolvedValueOnce(createMockFetchResponse({
         isConnected: true,
         phoneNumberId: '123',
         businessAccountId: '456',
@@ -107,7 +98,7 @@ describe('settingsService', () => {
         isConnected: false,
       }
 
-      mockFetch.mockResolvedValueOnce(createMockResponse({
+      mockFetch.mockResolvedValueOnce(createMockFetchResponse({
         displayPhoneNumber: '+5511999999999',
         verifiedName: 'Empresa',
       }))
@@ -122,7 +113,7 @@ describe('settingsService', () => {
 
   describe('testConnection', () => {
     it('deve lançar erro com detalhes quando falha', async () => {
-      mockFetch.mockResolvedValueOnce(createMockResponse({ error: 'Falha', code: 400 }, { ok: false }))
+      mockFetch.mockResolvedValueOnce(createMockFetchResponse({ error: 'Falha', code: 400 }, { ok: false }))
 
       await expect(settingsService.testConnection()).rejects.toMatchObject({
         message: 'Falha',

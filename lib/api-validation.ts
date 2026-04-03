@@ -31,13 +31,18 @@ const phoneSchema = z.string()
 
 /**
  * Schema de telefone para importação (mais permissivo, mas ainda normaliza).
+ * Rejeita entradas que ficam vazias após normalização (ex: "abc", "---").
  */
 const phoneSchemaImport = z.string()
   .min(1, 'Telefone é obrigatório')
   .transform((val) => {
     const normalized = normalizePhoneNumber(val)
-    // Se não conseguir normalizar, mantém o original (será tratado depois)
-    return normalized || val.replace(/\D/g, '')
+    // Se normalizar com sucesso, usa. Senão, tenta extrair apenas dígitos.
+    const result = normalized || val.replace(/\D/g, '')
+    return result
+  })
+  .refine((val) => val.length >= 8, {
+    message: 'Telefone inválido: deve ter pelo menos 8 dígitos',
   })
 
 // ============================================================================

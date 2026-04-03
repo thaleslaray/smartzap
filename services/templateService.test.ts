@@ -2,25 +2,17 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 import { templateService, TemplateServiceError } from './templateService'
 
-// Mock global fetch
-const mockFetch: ReturnType<typeof vi.fn> = vi.fn()
-const originalFetch = globalThis.fetch
-
-const createMockResponse = (data: unknown, options?: { ok?: boolean; status?: number }) => ({
-  ok: options?.ok ?? true,
-  status: options?.status ?? 200,
-  json: vi.fn().mockResolvedValue(data),
-})
+import { createMockFetchResponse, setupFetchMock } from '@/tests/helpers'
 
 describe('templateService', () => {
+  const mockFetch = setupFetchMock()
+
   beforeEach(() => {
     vi.clearAllMocks()
-    ;(globalThis as any).fetch = mockFetch
   })
 
   afterEach(() => {
     vi.resetAllMocks()
-    ;(globalThis as any).fetch = originalFetch
   })
 
   it('deve normalizar categoria no getAll', async () => {
@@ -37,7 +29,7 @@ describe('templateService', () => {
       },
     ]
 
-    mockFetch.mockResolvedValueOnce(createMockResponse(payload))
+    mockFetch.mockResolvedValueOnce(createMockFetchResponse(payload))
 
     const result = await templateService.getAll()
 
@@ -45,7 +37,7 @@ describe('templateService', () => {
   })
 
   it('deve lançar NOT_CONFIGURED quando 401', async () => {
-    mockFetch.mockResolvedValueOnce(createMockResponse({ error: 'Sem token' }, { ok: false, status: 401 }))
+    mockFetch.mockResolvedValueOnce(createMockFetchResponse({ error: 'Sem token' }, { ok: false, status: 401 }))
 
     let error: unknown
     try {
@@ -60,9 +52,9 @@ describe('templateService', () => {
 
   it('sync deve retornar total por count/total/array', async () => {
     mockFetch
-      .mockResolvedValueOnce(createMockResponse([{ id: '1' }, { id: '2' }]))
-      .mockResolvedValueOnce(createMockResponse({ count: 3 }))
-      .mockResolvedValueOnce(createMockResponse({ total: 4 }))
+      .mockResolvedValueOnce(createMockFetchResponse([{ id: '1' }, { id: '2' }]))
+      .mockResolvedValueOnce(createMockFetchResponse({ count: 3 }))
+      .mockResolvedValueOnce(createMockFetchResponse({ total: 4 }))
 
     await expect(templateService.sync()).resolves.toBe(2)
     await expect(templateService.sync()).resolves.toBe(3)
@@ -70,13 +62,13 @@ describe('templateService', () => {
   })
 
   it('generateUtilityTemplates deve propagar erro', async () => {
-    mockFetch.mockResolvedValueOnce(createMockResponse({ error: 'Falha' }, { ok: false }))
+    mockFetch.mockResolvedValueOnce(createMockFetchResponse({ error: 'Falha' }, { ok: false }))
 
     await expect(templateService.generateUtilityTemplates({ prompt: 'teste' })).rejects.toThrow('Falha')
   })
 
   it('createInMeta deve enviar categoria UTILITY', async () => {
-    mockFetch.mockResolvedValueOnce(createMockResponse({ message: 'ok' }))
+    mockFetch.mockResolvedValueOnce(createMockFetchResponse({ message: 'ok' }))
 
     await templateService.createInMeta({ name: 't', content: 'c', language: 'pt_BR' })
 
@@ -86,7 +78,7 @@ describe('templateService', () => {
   })
 
   it('getByName deve adicionar refresh_preview', async () => {
-    mockFetch.mockResolvedValueOnce(createMockResponse({ id: 't1' }))
+    mockFetch.mockResolvedValueOnce(createMockFetchResponse({ id: 't1' }))
 
     await templateService.getByName('teste', { refreshPreview: true })
 
@@ -95,7 +87,7 @@ describe('templateService', () => {
 
   it('deleteBulk deve retornar payload', async () => {
     const payload = { total: 2, deleted: 2, failed: 0, success: ['a', 'b'], errors: [] }
-    mockFetch.mockResolvedValueOnce(createMockResponse(payload))
+    mockFetch.mockResolvedValueOnce(createMockFetchResponse(payload))
 
     const result = await templateService.deleteBulk(['a', 'b'])
 
@@ -103,7 +95,7 @@ describe('templateService', () => {
   })
 
   it('uploadHeaderMedia deve retornar handle', async () => {
-    mockFetch.mockResolvedValueOnce(createMockResponse({ handle: 'h1' }))
+    mockFetch.mockResolvedValueOnce(createMockFetchResponse({ handle: 'h1' }))
 
     const file = new File(['x'], 'x.png', { type: 'image/png' })
     const result = await templateService.uploadHeaderMedia(file, 'image')
@@ -112,7 +104,7 @@ describe('templateService', () => {
   })
 
   it('uploadHeaderMedia deve falhar se não houver handle', async () => {
-    mockFetch.mockResolvedValueOnce(createMockResponse({}))
+    mockFetch.mockResolvedValueOnce(createMockFetchResponse({}))
 
     const file = new File(['x'], 'x.png', { type: 'image/png' })
 

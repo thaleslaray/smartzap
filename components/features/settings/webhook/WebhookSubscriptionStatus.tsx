@@ -172,14 +172,24 @@ export function WebhookSubscriptionStatus({
             </Alert>
           )}
 
+        {/* Aviso quando não foi possível consultar — provável falta de credenciais */}
+        {!webhookSubscriptionLoading && webhookSubscription && !webhookSubscription.ok && (
+          <div className="flex items-start gap-2 p-2.5 bg-amber-500/10 border border-amber-500/20 rounded-lg">
+            <Info size={14} className="text-amber-400 mt-0.5 shrink-0" />
+            <p className="text-[11px] text-amber-400/90">
+              Configure as credenciais do WhatsApp em <strong>Ajustes → Credenciais</strong> antes de ativar o webhook.
+            </p>
+          </div>
+        )}
+
         {/* Ações */}
         <div className="flex flex-wrap gap-2 pt-1">
           {!isConfigured || !isSmartZap ? (
             <button
               onClick={handleSubscribe}
-              disabled={isLoading || !onSubscribe}
-              className="h-10 px-3 bg-[var(--ds-status-success)] hover:opacity-90 text-white font-medium rounded-lg transition-colors text-sm flex items-center gap-2 disabled:opacity-50"
-              title="Configurar SmartZap como webhook WABA"
+              disabled={isLoading || !onSubscribe || (webhookSubscription !== undefined && !webhookSubscription?.ok)}
+              className="h-10 px-3 bg-[var(--ds-status-success)] hover:opacity-90 text-white font-medium rounded-lg transition-colors text-sm flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              title={webhookSubscription && !webhookSubscription.ok ? 'Configure as credenciais antes de ativar' : 'Configurar SmartZap como webhook WABA'}
             >
               {webhookSubscriptionMutating ? (
                 <Loader2 size={16} className="animate-spin" />

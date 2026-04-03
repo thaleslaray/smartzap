@@ -2,14 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 import { flowsService } from './flowsService'
 
-// Mock global fetch
-const mockFetch: ReturnType<typeof vi.fn> = vi.fn()
-const originalFetch = globalThis.fetch
-
-const createMockResponse = (data: unknown, options?: { ok?: boolean }) => ({
-  ok: options?.ok ?? true,
-  json: vi.fn().mockResolvedValue(data),
-})
+import { createMockFetchResponse, setupFetchMock } from '@/tests/helpers'
 
 const baseFlow = {
   id: 'f1',
@@ -22,18 +15,18 @@ const baseFlow = {
 }
 
 describe('flowsService', () => {
+  const mockFetch = setupFetchMock()
+
   beforeEach(() => {
     vi.clearAllMocks()
-    ;(globalThis as any).fetch = mockFetch
   })
 
   afterEach(() => {
     vi.resetAllMocks()
-    ;(globalThis as any).fetch = originalFetch
   })
 
   it('list deve filtrar itens inválidos', async () => {
-    mockFetch.mockResolvedValueOnce(createMockResponse([baseFlow, { id: 123 }]))
+    mockFetch.mockResolvedValueOnce(createMockFetchResponse([baseFlow, { id: 123 }]))
 
     const result = await flowsService.list()
 
@@ -42,7 +35,7 @@ describe('flowsService', () => {
   })
 
   it('create deve retornar flow válido', async () => {
-    mockFetch.mockResolvedValueOnce(createMockResponse(baseFlow))
+    mockFetch.mockResolvedValueOnce(createMockFetchResponse(baseFlow))
 
     const result = await flowsService.create({ name: 'novo' })
 
@@ -50,7 +43,7 @@ describe('flowsService', () => {
   })
 
   it('get deve retornar flow válido', async () => {
-    mockFetch.mockResolvedValueOnce(createMockResponse(baseFlow))
+    mockFetch.mockResolvedValueOnce(createMockFetchResponse(baseFlow))
 
     const result = await flowsService.get('f1')
 
@@ -58,19 +51,19 @@ describe('flowsService', () => {
   })
 
   it('create deve lançar erro se resposta inválida', async () => {
-    mockFetch.mockResolvedValueOnce(createMockResponse({ id: 'x' }))
+    mockFetch.mockResolvedValueOnce(createMockFetchResponse({ id: 'x' }))
 
     await expect(flowsService.create({ name: 'novo' })).rejects.toThrow('Resposta inválida')
   })
 
   it('update deve propagar detalhes de erro', async () => {
-    mockFetch.mockResolvedValueOnce(createMockResponse({ error: 'Falha', details: 'x' }, { ok: false }))
+    mockFetch.mockResolvedValueOnce(createMockFetchResponse({ error: 'Falha', details: 'x' }, { ok: false }))
 
     await expect(flowsService.update('f1', { name: 'n' })).rejects.toThrow('Falha: x')
   })
 
   it('publishToMeta deve incluir detalhes do graphError', async () => {
-    mockFetch.mockResolvedValueOnce(createMockResponse({
+    mockFetch.mockResolvedValueOnce(createMockFetchResponse({
       error: 'Erro',
       debug: {
         graphError: {
@@ -84,13 +77,13 @@ describe('flowsService', () => {
   })
 
   it('send deve lançar erro quando API falha', async () => {
-    mockFetch.mockResolvedValueOnce(createMockResponse({ error: 'Falhou' }, { ok: false }))
+    mockFetch.mockResolvedValueOnce(createMockFetchResponse({ error: 'Falhou' }, { ok: false }))
 
     await expect(flowsService.send({ to: '1', flowId: 'f', flowToken: 't' })).rejects.toThrow('Falhou')
   })
 
   it('generateForm deve exigir form no payload', async () => {
-    mockFetch.mockResolvedValueOnce(createMockResponse({} as any))
+    mockFetch.mockResolvedValueOnce(createMockFetchResponse({} as any))
 
     await expect(flowsService.generateForm({ prompt: 'teste' })).rejects.toThrow('form ausente')
   })

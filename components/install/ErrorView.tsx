@@ -7,10 +7,11 @@ import { Button } from '@/components/ui/button';
 import { StepCard } from './StepCard';
 import { cn } from '@/lib/utils';
 import { playError } from '@/hooks/useSoundFX';
-import type { InstallStep } from '@/lib/installer/types';
+import type { InstallStep, InstallErrorType } from '@/lib/installer/types';
 
 interface ErrorViewProps {
   error: string;
+  errorType?: InstallErrorType;
   errorDetails?: string;
   returnToStep: InstallStep;
   onRetry: () => void;
@@ -25,15 +26,36 @@ const STEP_NAMES: Record<InstallStep, string> = {
   5: 'Cache',
 };
 
+// Nomes legíveis dos serviços para alunos
+const STEP_SERVICES: Record<InstallStep, string> = {
+  1: 'suas credenciais',
+  2: 'token Vercel',
+  3: 'token Supabase',
+  4: 'token QStash',
+  5: 'credenciais Redis',
+};
+
+// Dica de ação por tipo de erro
+const ERROR_HINTS: Record<InstallErrorType, string> = {
+  vercel_token: 'Volte ao passo 2 e gere um novo token em vercel.com/account/tokens (escopo: Full Account).',
+  supabase_pat: 'Volte ao passo 3 e gere um novo PAT em app.supabase.com/account/tokens (deve começar com sbp_).',
+  qstash_token: 'Volte ao passo 4 e copie o QSTASH_TOKEN do console Upstash → QStash → Details (sem aspas).',
+  redis_url: 'Volte ao passo 5 e verifique a REST URL do Upstash Redis — deve ser https://[nome].upstash.io',
+  redis_token: 'Volte ao passo 5 e copie o REST Token do Upstash Redis (não o token de Management).',
+  network: 'Verifique sua conexão com a internet e tente novamente.',
+  unknown: 'Tente novamente. Se o problema persistir, verifique os dados do passo indicado.',
+};
+
 /**
  * View de erro durante o provisioning.
- * Tema Blade Runner - "Falha de Replicação"
+ * Tema Blade Runner — exibe mensagem específica por tipo de erro.
  */
-export function ErrorView({ error, errorDetails, returnToStep, onRetry, onGoToStep }: ErrorViewProps) {
-  // Som de erro ao montar
+export function ErrorView({ error, errorType, errorDetails, returnToStep, onRetry, onGoToStep }: ErrorViewProps) {
   useEffect(() => {
     playError();
   }, []);
+
+  const hint = errorType ? ERROR_HINTS[errorType] : ERROR_HINTS.unknown;
 
   return (
     <StepCard glowColor="red">
@@ -60,7 +82,12 @@ export function ErrorView({ error, errorDetails, returnToStep, onRetry, onGoToSt
         {/* Error message */}
         <p className="mt-2 text-sm text-[var(--br-neon-pink)] font-mono max-w-sm">{error}</p>
 
-        {/* Error details */}
+        {/* Action hint — específico por errorType */}
+        <p className="mt-3 text-xs font-mono text-[var(--br-muted-cyan)] max-w-sm leading-relaxed">
+          {hint}
+        </p>
+
+        {/* Error details — apenas para desenvolvedores */}
         {errorDetails && (
           <motion.details
             initial={{ opacity: 0 }}
@@ -76,9 +103,11 @@ export function ErrorView({ error, errorDetails, returnToStep, onRetry, onGoToSt
           </motion.details>
         )}
 
-        {/* Problem hint */}
+        {/* Qual etapa foi afetada */}
         <p className="mt-4 text-xs font-mono text-[var(--br-dust-gray)]">
-          Anomalia detectada em: <strong className="text-[var(--br-neon-orange)]">{STEP_NAMES[returnToStep]}</strong>
+          Anomalia em: <strong className="text-[var(--br-neon-orange)]">
+            Passo {returnToStep} — {STEP_SERVICES[returnToStep]}
+          </strong>
         </p>
 
         {/* Actions */}
@@ -93,7 +122,7 @@ export function ErrorView({ error, errorDetails, returnToStep, onRetry, onGoToSt
             )}
             onClick={() => onGoToStep(returnToStep)}
           >
-            Corrigir {STEP_NAMES[returnToStep]}
+            Corrigir Passo {returnToStep}
           </Button>
           <Button
             className={cn(

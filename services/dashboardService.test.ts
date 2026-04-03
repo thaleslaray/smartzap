@@ -10,28 +10,21 @@ vi.mock('./campaignService', () => ({
 import { campaignService } from './campaignService'
 import { dashboardService } from './dashboardService'
 
-// Mock global fetch
-const mockFetch: ReturnType<typeof vi.fn> = vi.fn()
-const originalFetch = globalThis.fetch
-
-const createMockResponse = (data: unknown, options?: { ok?: boolean }) => ({
-  ok: options?.ok ?? true,
-  json: vi.fn().mockResolvedValue(data),
-})
+import { createMockFetchResponse, setupFetchMock } from '@/tests/helpers'
 
 describe('dashboardService', () => {
+  const mockFetch = setupFetchMock()
+
   beforeEach(() => {
     vi.clearAllMocks()
-    ;(globalThis as any).fetch = mockFetch
   })
 
   afterEach(() => {
     vi.resetAllMocks()
-    ;(globalThis as any).fetch = originalFetch
   })
 
   it('getStats deve combinar stats e campanhas', async () => {
-    mockFetch.mockResolvedValueOnce(createMockResponse({
+    mockFetch.mockResolvedValueOnce(createMockFetchResponse({
       totalSent: 10,
       totalDelivered: 8,
       totalRead: 5,
@@ -64,7 +57,7 @@ describe('dashboardService', () => {
   })
 
   it('getStats deve usar defaults quando stats falha', async () => {
-    mockFetch.mockResolvedValueOnce(createMockResponse({}, { ok: false }))
+    mockFetch.mockResolvedValueOnce(createMockFetchResponse({}, { ok: false }))
     ;(campaignService.getAll as ReturnType<typeof vi.fn>).mockResolvedValueOnce([])
 
     const result = await dashboardService.getStats()
