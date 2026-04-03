@@ -1,3 +1,5 @@
+import { api } from '@/lib/api'
+
 export type SettingsPerformanceSource = 'run_metrics' | 'campaigns_fallback'
 
 export interface SettingsPerformanceTotals {
@@ -51,24 +53,13 @@ export interface SettingsPerformanceResponse {
 }
 
 export const performanceService = {
-  getSettingsPerformance: async (opts?: { rangeDays?: number; limit?: number }): Promise<SettingsPerformanceResponse> => {
+  getSettingsPerformance: (opts?: { rangeDays?: number; limit?: number }): Promise<SettingsPerformanceResponse> => {
     const rangeDays = opts?.rangeDays ?? 30
     const limit = opts?.limit ?? 200
-
     const url = `/api/settings/performance?rangeDays=${encodeURIComponent(String(rangeDays))}&limit=${encodeURIComponent(String(limit))}`
-
-    const res = await fetch(url, {
+    return api.get<SettingsPerformanceResponse>(url, {
       cache: 'no-store',
-      headers: {
-        'Cache-Control': 'no-cache',
-      },
+      headers: { 'Cache-Control': 'no-cache' },
     })
-
-    const json = await res.json().catch(() => null)
-    if (!res.ok) {
-      const msg = (json as any)?.error || 'Falha ao carregar performance'
-      throw new Error(msg)
-    }
-    return json as SettingsPerformanceResponse
   },
 }

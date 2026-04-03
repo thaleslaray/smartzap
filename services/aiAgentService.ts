@@ -4,12 +4,12 @@
  */
 
 import type { AIAgent } from '@/types'
+import type { EmbeddingProvider, RerankProvider } from '@/types'
+import { api } from '@/lib/api'
 
 // =============================================================================
 // Types
 // =============================================================================
-
-import type { EmbeddingProvider, RerankProvider } from '@/types'
 
 export interface CreateAIAgentParams {
   name: string
@@ -74,103 +74,35 @@ export interface UpdateAIAgentParams {
 }
 
 // =============================================================================
-// API Functions
-// =============================================================================
-
-/**
- * List all AI agents
- */
-async function listAgents(): Promise<AIAgent[]> {
-  const response = await fetch('/api/ai-agents')
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ error: 'Failed to fetch AI agents' }))
-    throw new Error(error.error || 'Failed to fetch AI agents')
-  }
-  return response.json()
-}
-
-/**
- * Get a single AI agent by ID
- */
-async function getAgent(id: string): Promise<AIAgent> {
-  const response = await fetch(`/api/ai-agents/${id}`)
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ error: 'Failed to fetch AI agent' }))
-    throw new Error(error.error || 'Failed to fetch AI agent')
-  }
-  return response.json()
-}
-
-/**
- * Create a new AI agent
- */
-async function createAgent(params: CreateAIAgentParams): Promise<AIAgent> {
-  const response = await fetch('/api/ai-agents', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(params),
-  })
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ error: 'Failed to create AI agent' }))
-    throw new Error(error.error || 'Failed to create AI agent')
-  }
-  return response.json()
-}
-
-/**
- * Update an AI agent
- */
-async function updateAgent(id: string, params: UpdateAIAgentParams): Promise<AIAgent> {
-  const response = await fetch(`/api/ai-agents/${id}`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(params),
-  })
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ error: 'Failed to update AI agent' }))
-    throw new Error(error.error || 'Failed to update AI agent')
-  }
-  return response.json()
-}
-
-/**
- * Delete an AI agent
- */
-async function deleteAgent(id: string): Promise<{ success: boolean; deleted: string }> {
-  const response = await fetch(`/api/ai-agents/${id}`, {
-    method: 'DELETE',
-  })
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ error: 'Failed to delete AI agent' }))
-    throw new Error(error.error || 'Failed to delete AI agent')
-  }
-  return response.json()
-}
-
-/**
- * Set an agent as the default
- */
-async function setDefaultAgent(id: string): Promise<AIAgent> {
-  return updateAgent(id, { is_default: true })
-}
-
-/**
- * Toggle agent active status
- */
-async function toggleAgentActive(id: string, isActive: boolean): Promise<AIAgent> {
-  return updateAgent(id, { is_active: isActive })
-}
-
-// =============================================================================
 // Export Service
 // =============================================================================
 
 export const aiAgentService = {
-  list: listAgents,
-  get: getAgent,
-  create: createAgent,
-  update: updateAgent,
-  delete: deleteAgent,
-  setDefault: setDefaultAgent,
-  toggleActive: toggleAgentActive,
+  list: (): Promise<AIAgent[]> =>
+    api.get<AIAgent[]>('/api/ai-agents'),
+
+  get: (id: string): Promise<AIAgent> =>
+    api.get<AIAgent>(`/api/ai-agents/${id}`),
+
+  create: (params: CreateAIAgentParams): Promise<AIAgent> =>
+    api.post<AIAgent>('/api/ai-agents', params),
+
+  update: (id: string, params: UpdateAIAgentParams): Promise<AIAgent> =>
+    api.patch<AIAgent>(`/api/ai-agents/${id}`, params),
+
+  // DELETE endpoint retorna JSON — fetch manual necessário
+  delete: async (id: string): Promise<{ success: boolean; deleted: string }> => {
+    const response = await fetch(`/api/ai-agents/${id}`, { method: 'DELETE' })
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: 'Failed to delete AI agent' }))
+      throw new Error(error.error || 'Failed to delete AI agent')
+    }
+    return response.json()
+  },
+
+  setDefault: (id: string): Promise<AIAgent> =>
+    api.patch<AIAgent>(`/api/ai-agents/${id}`, { is_default: true }),
+
+  toggleActive: (id: string, isActive: boolean): Promise<AIAgent> =>
+    api.patch<AIAgent>(`/api/ai-agents/${id}`, { is_active: isActive }),
 }

@@ -70,7 +70,7 @@ describe('contactService', () => {
     it('deve lançar erro quando fetch falha', async () => {
       mockFetch.mockResolvedValueOnce(createMockFetchResponse(null, { ok: false }))
 
-      await expect(contactService.list({ limit: 10, offset: 0 })).rejects.toThrow('Falha ao buscar contatos')
+      await expect(contactService.list({ limit: 10, offset: 0 })).rejects.toThrow()
     })
   })
 

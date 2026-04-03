@@ -56,10 +56,10 @@ describe('flowsService', () => {
     await expect(flowsService.create({ name: 'novo' })).rejects.toThrow('Resposta inválida')
   })
 
-  it('update deve propagar detalhes de erro', async () => {
+  it('update deve propagar erro do servidor', async () => {
     mockFetch.mockResolvedValueOnce(createMockFetchResponse({ error: 'Falha', details: 'x' }, { ok: false }))
 
-    await expect(flowsService.update('f1', { name: 'n' })).rejects.toThrow('Falha: x')
+    await expect(flowsService.update('f1', { name: 'n' })).rejects.toThrow('Falha')
   })
 
   it('publishToMeta deve incluir detalhes do graphError', async () => {

@@ -82,7 +82,7 @@ describe('templateService', () => {
 
     await templateService.getByName('teste', { refreshPreview: true })
 
-    expect(mockFetch).toHaveBeenCalledWith('/api/templates/teste?refresh_preview=1', expect.any(Object))
+    expect(mockFetch).toHaveBeenCalledWith('/api/templates/teste?refresh_preview=1')
   })
 
   it('deleteBulk deve retornar payload', async () => {

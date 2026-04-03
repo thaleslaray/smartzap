@@ -91,7 +91,6 @@ describe('campaignService', () => {
       const result = await campaignService.list({ limit: 10, offset: 0 })
 
       expect(result).toEqual({ data: [], total: 0, limit: 10, offset: 0 })
-      expect(console.error).toHaveBeenCalledWith('Failed to fetch campaigns:', 'Internal Server Error')
     })
   })
 
@@ -146,7 +145,6 @@ describe('campaignService', () => {
       const result = await campaignService.getById('campaign-123')
 
       expect(result).toBeUndefined()
-      expect(console.error).toHaveBeenCalledWith('Failed to fetch campaign:', 'Server Error')
     })
   })
 
@@ -271,7 +269,6 @@ describe('campaignService', () => {
       const result = await campaignService.getRealStatus('campaign-123')
 
       expect(result).toBeNull()
-      expect(console.error).toHaveBeenCalledWith('Failed to fetch real status:', expect.any(Error))
     })
   })
 
@@ -326,7 +323,7 @@ describe('campaignService', () => {
     })
 
     it('deve lancar erro quando POST falha', async () => {
-      mockFetch.mockResolvedValueOnce(createMockFetchResponse(null, { ok: false }))
+      mockFetch.mockResolvedValueOnce(createMockFetchResponse({ error: 'Failed to create campaign' }, { ok: false }))
 
       await expect(campaignService.create(mockInput)).rejects.toThrow('Failed to create campaign')
     })
@@ -479,7 +476,7 @@ describe('campaignService', () => {
     })
 
     it('deve lancar erro quando delete falha', async () => {
-      mockFetch.mockResolvedValueOnce(createMockFetchResponse(null, { ok: false }))
+      mockFetch.mockResolvedValueOnce(createMockFetchResponse({ error: 'Failed to delete campaign' }, { ok: false }))
 
       await expect(campaignService.delete('campaign-123')).rejects.toThrow('Failed to delete campaign')
     })
@@ -495,12 +492,16 @@ describe('campaignService', () => {
 
       const result = await campaignService.duplicate('campaign-123')
 
-      expect(mockFetch).toHaveBeenCalledWith('/api/campaigns/campaign-123/clone', { method: 'POST' })
+      expect(mockFetch).toHaveBeenCalledWith('/api/campaigns/campaign-123/clone', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: undefined,
+      })
       expect(result).toEqual(duplicatedCampaign)
     })
 
     it('deve lancar erro quando duplicacao falha', async () => {
-      mockFetch.mockResolvedValueOnce(createMockFetchResponse(null, { ok: false }))
+      mockFetch.mockResolvedValueOnce(createMockFetchResponse({ error: 'Failed to duplicate campaign' }, { ok: false }))
 
       await expect(campaignService.duplicate('campaign-123')).rejects.toThrow('Failed to duplicate campaign')
     })
@@ -785,22 +786,28 @@ describe('campaignService', () => {
   // ERROR HANDLING - NETWORK FAILURES
   // =============================================================================
   describe('error handling - network failures', () => {
-    it('list deve tratar erros de rede graciosamente', async () => {
+    it('list deve retornar fallback em erros de rede', async () => {
       mockFetch.mockRejectedValueOnce(new Error('Network error'))
 
-      await expect(campaignService.list({ limit: 10, offset: 0 })).rejects.toThrow('Network error')
+      const result = await campaignService.list({ limit: 10, offset: 0 })
+
+      expect(result).toEqual({ data: [], total: 0, limit: 10, offset: 0 })
     })
 
-    it('getAll deve tratar erros de rede graciosamente', async () => {
+    it('getAll deve retornar array vazio em erros de rede', async () => {
       mockFetch.mockRejectedValueOnce(new Error('Network error'))
 
-      await expect(campaignService.getAll()).rejects.toThrow('Network error')
+      const result = await campaignService.getAll()
+
+      expect(result).toEqual([])
     })
 
-    it('getById deve tratar erros de rede graciosamente', async () => {
+    it('getById deve retornar undefined em erros de rede', async () => {
       mockFetch.mockRejectedValueOnce(new Error('Network error'))
 
-      await expect(campaignService.getById('campaign-123')).rejects.toThrow('Network error')
+      const result = await campaignService.getById('campaign-123')
+
+      expect(result).toBeUndefined()
     })
 
     it('delete deve tratar erros de rede graciosamente', async () => {

@@ -1,3 +1,5 @@
+import { api } from '@/lib/api';
+
 export interface FlowSubmissionsQuery {
   flowId?: string
   campaignId?: string
@@ -15,6 +17,7 @@ export interface FlowSubmissionRow {
   flow_token: string | null
   campaign_id?: string | null
   response_json_raw: string
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   response_json: any | null
   waba_id: string | null
   phone_number_id: string | null
@@ -31,20 +34,6 @@ export const flowSubmissionsService = {
     if (query.limit) sp.set('limit', String(query.limit))
 
     const url = `/api/flows/submissions${sp.toString() ? `?${sp.toString()}` : ''}`
-    const res = await fetch(url, {
-      credentials: 'include',
-      headers: {
-        'Cache-Control': 'no-cache',
-      },
-    })
-
-    if (!res.ok) {
-      const data = await res.json().catch(() => null)
-      const base = (data?.error && String(data.error)) || 'Falha ao buscar submissões de MiniApp'
-      const details = data?.details ? String(data.details) : ''
-      throw new Error(details ? `${base}: ${details}` : base)
-    }
-
-    return res.json()
+    return api.get<FlowSubmissionRow[]>(url, { headers: { 'Cache-Control': 'no-cache' } })
   },
 }

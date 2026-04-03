@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { api } from '@/lib/api'
 
 export type ManualDraftTemplate = {
   id: string
@@ -24,6 +25,12 @@ const DraftRowSchema = z.object({
   content: z.string().optional(),
 })
 
+function parseDraft(data: unknown, errorMsg: string): ManualDraftTemplate {
+  const parsed = DraftRowSchema.safeParse(data)
+  if (!parsed.success) throw new Error(errorMsg)
+  return parsed.data
+}
+
 function parseListResponse(raw: unknown): ManualDraftTemplate[] {
   if (!Array.isArray(raw)) return []
   const parsed: ManualDraftTemplate[] = []
@@ -37,93 +44,37 @@ function parseListResponse(raw: unknown): ManualDraftTemplate[] {
 
 export const manualDraftsService = {
   async get(id: string): Promise<ManualDraftTemplate> {
-    const res = await fetch(`/api/templates/drafts/${encodeURIComponent(id)}`, {
-      method: 'GET',
-      credentials: 'include',
-    })
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({}))
-      throw new Error(data?.error || 'Falha ao buscar rascunho')
-    }
-    const data = await res.json()
-    const parsed = DraftRowSchema.safeParse(data)
-    if (!parsed.success) throw new Error('Resposta inválida ao buscar rascunho')
-    return parsed.data
+    const data = await api.get<unknown>(`/api/templates/drafts/${encodeURIComponent(id)}`)
+    return parseDraft(data, 'Resposta inválida ao buscar rascunho')
   },
 
   async list(): Promise<ManualDraftTemplate[]> {
-    const res = await fetch('/api/templates/drafts', { method: 'GET', credentials: 'include' })
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({}))
-      throw new Error(data?.error || 'Falha ao buscar rascunhos')
-    }
-    const data = await res.json()
+    const data = await api.get<unknown>('/api/templates/drafts')
     return parseListResponse(data)
   },
 
   async create(input: { name: string; language?: string; category?: string; parameterFormat?: 'positional' | 'named' }): Promise<ManualDraftTemplate> {
-    const res = await fetch('/api/templates/drafts', {
-      method: 'POST',
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(input),
-    })
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({}))
-      throw new Error(data?.error || 'Falha ao criar rascunho')
-    }
-    const data = await res.json()
-    const parsed = DraftRowSchema.safeParse(data)
-    if (!parsed.success) throw new Error('Resposta inválida ao criar rascunho')
-    return parsed.data
+    const data = await api.post<unknown>('/api/templates/drafts', input)
+    return parseDraft(data, 'Resposta inválida ao criar rascunho')
   },
 
   async remove(id: string): Promise<void> {
-    const res = await fetch(`/api/templates/drafts/${encodeURIComponent(id)}`, { method: 'DELETE', credentials: 'include' })
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({}))
-      throw new Error(data?.error || 'Falha ao excluir rascunho')
-    }
+    return api.del(`/api/templates/drafts/${encodeURIComponent(id)}`)
   },
 
   async update(
     id: string,
     patch: { name?: string; language?: string; category?: string; parameterFormat?: 'positional' | 'named'; spec?: unknown }
   ): Promise<ManualDraftTemplate> {
-    const res = await fetch(`/api/templates/drafts/${encodeURIComponent(id)}`, {
-      method: 'PATCH',
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(patch),
-    })
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({}))
-      throw new Error(data?.error || 'Falha ao atualizar rascunho')
-    }
-    const data = await res.json()
-    const parsed = DraftRowSchema.safeParse(data)
-    if (!parsed.success) throw new Error('Resposta inválida ao atualizar rascunho')
-    return parsed.data
+    const data = await api.patch<unknown>(`/api/templates/drafts/${encodeURIComponent(id)}`, patch)
+    return parseDraft(data, 'Resposta inválida ao atualizar rascunho')
   },
 
   async submit(id: string): Promise<{ success: boolean; status?: string; id?: string; name?: string }> {
-    const res = await fetch(`/api/templates/drafts/${encodeURIComponent(id)}/submit`, { method: 'POST', credentials: 'include' })
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({}))
-      throw new Error(data?.error || 'Falha ao enviar template para a Meta')
-    }
-    return await res.json()
+    return api.post(`/api/templates/drafts/${encodeURIComponent(id)}/submit`)
   },
 
   async clone(templateName: string): Promise<{ id: string; name: string; originalName: string }> {
-    const res = await fetch(`/api/templates/${encodeURIComponent(templateName)}/clone`, {
-      method: 'POST',
-      credentials: 'include',
-    })
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({}))
-      throw new Error(data?.error || 'Falha ao clonar template')
-    }
-    return await res.json()
+    return api.post(`/api/templates/${encodeURIComponent(templateName)}/clone`)
   },
 }

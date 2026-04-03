@@ -9,6 +9,7 @@ import {
   type ParseOptions
 } from '../lib/csv-parser';
 import { logger } from '../lib/logger';
+import { api } from '@/lib/api';
 
 export interface ContactStats {
   total: number;
@@ -43,66 +44,36 @@ export interface ContactListResult {
  * All data is stored in Main Database (source of truth)
  */
 export const contactService = {
-  getAll: async (): Promise<Contact[]> => {
-    const response = await fetch('/api/contacts', { cache: 'no-store' });
-    if (!response.ok) {
-      throw new Error('Falha ao buscar contatos');
-    }
-    return response.json();
-  },
+  getAll: (): Promise<Contact[]> =>
+    api.get<Contact[]>('/api/contacts', { cache: 'no-store' }),
 
-  getById: async (id: string): Promise<Contact | undefined> => {
-    const response = await fetch(`/api/contacts/${id}`, { cache: 'no-store' });
-    if (!response.ok) {
-      if (response.status === 404) return undefined;
-      return undefined;
-    }
-    return response.json();
-  },
+  // Retorna undefined tanto em 404 quanto em outros erros (comportamento intencional)
+  getById: (id: string): Promise<Contact | undefined> =>
+    api.safeGet<Contact | undefined>(`/api/contacts/${id}`, undefined, { cache: 'no-store' }),
 
-  getStats: async (): Promise<ContactStats> => {
-    const response = await fetch('/api/contacts/stats', { cache: 'no-store' });
-    if (!response.ok) {
-      return { total: 0, optIn: 0, optOut: 0 };
-    }
-    return response.json();
-  },
+  getStats: (): Promise<ContactStats> =>
+    api.safeGet<ContactStats>('/api/contacts/stats', { total: 0, optIn: 0, optOut: 0 }, { cache: 'no-store' }),
 
-  getTags: async (): Promise<string[]> => {
-    const response = await fetch('/api/contacts/tags', { cache: 'no-store' });
-    if (!response.ok) {
-      throw new Error('Falha ao buscar tags');
-    }
-    return response.json();
-  },
+  getTags: (): Promise<string[]> =>
+    api.get<string[]>('/api/contacts/tags', { cache: 'no-store' }),
 
-  list: async (params: ContactListParams): Promise<ContactListResult> => {
+  list: (params: ContactListParams): Promise<ContactListResult> => {
     const searchParams = new URLSearchParams();
     searchParams.set('limit', String(params.limit));
     searchParams.set('offset', String(params.offset));
     if (params.search) searchParams.set('search', params.search);
     if (params.status && params.status !== 'ALL') searchParams.set('status', params.status);
     if (params.tag && params.tag !== 'ALL') searchParams.set('tag', params.tag);
-
-    const response = await fetch(`/api/contacts?${searchParams.toString()}`, { cache: 'no-store' });
-    if (!response.ok) {
-      throw new Error('Falha ao buscar contatos');
-    }
-    return response.json();
+    return api.get<ContactListResult>(`/api/contacts?${searchParams.toString()}`, { cache: 'no-store' });
   },
 
-  getIds: async (params: { search?: string; status?: string; tag?: string }): Promise<string[]> => {
+  getIds: (params: { search?: string; status?: string; tag?: string }): Promise<string[]> => {
     const searchParams = new URLSearchParams();
     if (params.search) searchParams.set('search', params.search);
     if (params.status && params.status !== 'ALL') searchParams.set('status', params.status);
     if (params.tag && params.tag !== 'ALL') searchParams.set('tag', params.tag);
-
     const qs = searchParams.toString();
-    const response = await fetch(`/api/contacts/ids${qs ? `?${qs}` : ''}`, { cache: 'no-store' });
-    if (!response.ok) {
-      throw new Error('Falha ao buscar IDs de contatos');
-    }
-    return response.json();
+    return api.get<string[]>(`/api/contacts/ids${qs ? `?${qs}` : ''}`, { cache: 'no-store' });
   },
 
   /**
@@ -112,35 +83,14 @@ export const contactService = {
     const { normalized, validation } = processPhoneNumber(contact.phone);
 
     if (!validation.isValid) {
-      logger.warn('Invalid phone number rejected', {
-        phone: contact.phone,
-        error: validation.error
-      });
+      logger.warn('Invalid phone number rejected', { phone: contact.phone, error: validation.error });
       throw new Error(validation.error || 'Número de telefone inválido');
     }
 
-    const normalizedContact = {
-      ...contact,
-      phone: normalized,
-    };
+    const result = await api.post<Contact>('/api/contacts', { ...contact, phone: normalized });
 
-    const response = await fetch('/api/contacts', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(normalizedContact),
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.error || 'Falha ao adicionar contato');
-    }
-
-    logger.info('Contact added', {
-      name: contact.name,
-      phone: normalized
-    });
-
-    return response.json();
+    logger.info('Contact added', { name: contact.name, phone: normalized });
+    return result;
   },
 
   /**
@@ -155,6 +105,7 @@ export const contactService = {
     };
   },
 
+  // Retorna undefined em caso de erro (comportamento intencional — não lança exceção)
   update: async (
     id: string,
     data: (Partial<Omit<Contact, 'id'>> & { email?: string | null })
@@ -199,18 +150,7 @@ export const contactService = {
       tags: [] as string[],
     }));
 
-    // Import via API
-    const response = await fetch('/api/contacts/import', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ contacts: contactsToImport }),
-    });
-
-    if (!response.ok) {
-      throw new Error('Falha ao importar contatos');
-    }
-
-    const { imported } = await response.json();
+    const { imported } = await api.post<{ imported: number }>('/api/contacts/import', { contacts: contactsToImport });
 
     const result: ImportResult = {
       imported,
@@ -220,7 +160,6 @@ export const contactService = {
     };
 
     logger.info('Contact import completed', { ...result });
-
     return result;
   },
 
@@ -240,17 +179,7 @@ export const contactService = {
       tags: [] as string[],
     }));
 
-    const response = await fetch('/api/contacts/import', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ contacts: contactsToImport }),
-    });
-
-    if (!response.ok) {
-      throw new Error('Falha ao importar contatos');
-    }
-
-    const { imported } = await response.json();
+    const { imported } = await api.post<{ imported: number }>('/api/contacts/import', { contacts: contactsToImport });
 
     return {
       imported,
@@ -274,36 +203,19 @@ export const contactService = {
       })
       .filter((c): c is Omit<Contact, 'id' | 'lastActive'> => c !== null);
 
-    logger.info('Import contacts', {
-      total: contacts.length,
-      valid: validContacts.length
-    });
+    logger.info('Import contacts', { total: contacts.length, valid: validContacts.length });
 
-    const response = await fetch('/api/contacts/import', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ contacts: validContacts }),
-    });
-
-    if (!response.ok) {
-      throw new Error('Falha ao importar contatos');
-    }
-
-    const { inserted, updated } = await response.json();
+    const { inserted, updated } = await api.post<{ inserted: number; updated: number }>(
+      '/api/contacts/import',
+      { contacts: validContacts }
+    );
     return { inserted: inserted || 0, updated: updated || 0 };
   },
 
-  delete: async (id: string): Promise<void> => {
-    const response = await fetch(`/api/contacts/${id}`, {
-      method: 'DELETE',
-    });
+  delete: (id: string): Promise<void> =>
+    api.del(`/api/contacts/${id}`),
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.error || 'Falha ao deletar contato');
-    }
-  },
-
+  // Mantido raw: DELETE com body JSON + lê { deleted } do response
   deleteMany: async (ids: string[]): Promise<number> => {
     const response = await fetch('/api/contacts', {
       method: 'DELETE',
@@ -321,19 +233,19 @@ export const contactService = {
   },
 
   /**
+   * Atualiza tags de múltiplos contatos em uma operação.
+   */
+  bulkUpdateTags: async (ids: string[], tagsToAdd: string[], tagsToRemove: string[]): Promise<number> => {
+    const { updated } = await api.post<{ updated: number }>('/api/contacts/bulk-tags', { ids, tagsToAdd, tagsToRemove });
+    return updated;
+  },
+
+  /**
    * Remove a supressão global de um telefone.
    * Útil para números de teste ou clientes que pediram para voltar a receber.
    */
   unsuppress: async (phone: string): Promise<void> => {
-    const response = await fetch(`/api/phone-suppressions/${encodeURIComponent(phone)}`, {
-      method: 'DELETE',
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.error || 'Falha ao remover supressão');
-    }
-
+    await api.del(`/api/phone-suppressions/${encodeURIComponent(phone)}`);
     logger.info('Phone unsuppressed', { phone });
   }
 };

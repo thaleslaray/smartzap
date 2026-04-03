@@ -1,5 +1,6 @@
 import { Template, TemplateStatus } from '../types';
 import { canonicalTemplateCategory } from '@/lib/template-category';
+import { api } from '@/lib/api';
 
 export class TemplateServiceError extends Error {
   constructor(message: string, public code: 'NOT_CONFIGURED' | 'FETCH_FAILED') {
@@ -136,49 +137,26 @@ export const templateService = {
     throw new Error('Templates devem ser criados no Meta Business Manager');
   },
 
-  generateUtilityTemplates: async (params: GenerateUtilityParams): Promise<GenerateUtilityResponse> => {
-    const response = await fetch('/api/ai/generate-utility-templates', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        prompt: params.prompt,
-        quantity: params.quantity || 5,
-        language: params.language || 'pt_BR'
-      })
-    });
-
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({}));
-      throw new Error(error.error || 'Falha ao gerar templates');
-    }
-
-    return response.json();
-  },
+  generateUtilityTemplates: (params: GenerateUtilityParams): Promise<GenerateUtilityResponse> =>
+    api.post<GenerateUtilityResponse>('/api/ai/generate-utility-templates', {
+      prompt: params.prompt,
+      quantity: params.quantity || 5,
+      language: params.language || 'pt_BR',
+    }),
 
   // Criar template diretamente na Meta via API
   createInMeta: async (template: { name: string; content: string; language?: string }): Promise<{ success: boolean; message: string }> => {
-    const response = await fetch('/api/templates/create', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        name: template.name,
-        content: template.content,
-        language: template.language || 'pt_BR',
-        category: 'UTILITY'
-      })
+    const data = await api.post<{ message: string }>('/api/templates/create', {
+      name: template.name,
+      content: template.content,
+      language: template.language || 'pt_BR',
+      category: 'UTILITY',
     });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(data.error || 'Falha ao criar template na Meta');
-    }
-
     return { success: true, message: data.message };
   },
 
   // Criar múltiplos templates na Meta via API
-  createBulkInMeta: async (templates: Array<{
+  createBulkInMeta: (templates: Array<{
     name: string;
     content: string;
     language?: string;
@@ -193,21 +171,7 @@ export const templateService = {
     failed: number;
     success: string[];
     errors: Array<{ name: string; error: string }>;
-  }> => {
-    const response = await fetch('/api/templates/create', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ templates })
-    });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(data.error || 'Falha ao criar templates na Meta');
-    }
-
-    return data;
-  },
+  }> => api.post('/api/templates/create', { templates }),
 
   // Exportar template para formato Meta (para copiar/colar no Business Manager) - mantido como fallback
   exportForMeta: (template: GeneratedTemplate): string => {
@@ -228,7 +192,7 @@ export const templateService = {
   },
 
   // Buscar detalhes de um template específico
-  getByName: async (
+  getByName: (
     name: string,
     options?: { refreshPreview?: boolean }
   ): Promise<Template & {
@@ -241,17 +205,7 @@ export const templateService = {
     rejectedReason?: string | null;
   }> => {
     const query = options?.refreshPreview ? '?refresh_preview=1' : '';
-    const response = await fetch(`/api/templates/${encodeURIComponent(name)}${query}`, {
-      method: 'GET',
-      headers: { 'Content-Type': 'application/json' }
-    });
-
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({}));
-      throw new Error(error.error || 'Falha ao buscar template');
-    }
-
-    return response.json();
+    return api.get(`/api/templates/${encodeURIComponent(name)}${query}`);
   },
 
   // Deletar template da Meta
@@ -271,27 +225,13 @@ export const templateService = {
   },
 
   // Deletar múltiplos templates da Meta
-  deleteBulk: async (names: string[]): Promise<{
+  deleteBulk: (names: string[]): Promise<{
     total: number;
     deleted: number;
     failed: number;
     success: string[];
     errors: Array<{ name: string; error: string }>;
-  }> => {
-    const response = await fetch('/api/templates/bulk-delete', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ names })
-    });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(data.error || 'Falha ao deletar templates');
-    }
-
-    return data;
-  },
+  }> => api.post('/api/templates/bulk-delete', { names }),
 
   // Upload de mídia para header de template (retorna header_handle)
   uploadHeaderMedia: async (file: File, format: string): Promise<{ handle: string }> => {

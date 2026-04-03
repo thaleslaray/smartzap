@@ -12,6 +12,7 @@ import type {
   ConversationMode,
   ConversationPriority,
 } from '@/types'
+import { api } from '@/lib/api'
 
 // =============================================================================
 // Types
@@ -71,188 +72,6 @@ export interface CreateQuickReplyParams {
   shortcut?: string
 }
 
-// =============================================================================
-// Conversation API
-// =============================================================================
-
-async function listConversations(params: ConversationListParams = {}): Promise<ConversationListResult> {
-  const searchParams = new URLSearchParams()
-  if (params.page) searchParams.set('page', String(params.page))
-  if (params.limit) searchParams.set('limit', String(params.limit))
-  if (params.status) searchParams.set('status', params.status)
-  if (params.mode) searchParams.set('mode', params.mode)
-  if (params.labelId) searchParams.set('label_id', params.labelId)
-  if (params.search) searchParams.set('search', params.search)
-
-  const response = await fetch(`/api/inbox/conversations?${searchParams.toString()}`)
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ error: 'Failed to fetch conversations' }))
-    throw new Error(error.error || 'Failed to fetch conversations')
-  }
-  return response.json()
-}
-
-async function getConversation(id: string): Promise<InboxConversation> {
-  const response = await fetch(`/api/inbox/conversations/${id}`)
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ error: 'Failed to fetch conversation' }))
-    throw new Error(`${response.status}: ${error.error || 'Failed to fetch conversation'}`)
-  }
-  return response.json()
-}
-
-async function updateConversation(id: string, params: UpdateConversationParams): Promise<InboxConversation> {
-  const response = await fetch(`/api/inbox/conversations/${id}`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(params),
-  })
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ error: 'Failed to update conversation' }))
-    throw new Error(error.error || 'Failed to update conversation')
-  }
-  return response.json()
-}
-
-async function deleteConversation(id: string): Promise<void> {
-  const response = await fetch(`/api/inbox/conversations/${id}`, {
-    method: 'DELETE',
-  })
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ error: 'Failed to delete conversation' }))
-    throw new Error(error.error || 'Failed to delete conversation')
-  }
-}
-
-async function markAsRead(conversationId: string): Promise<void> {
-  const response = await fetch(`/api/inbox/conversations/${conversationId}/read`, {
-    method: 'POST',
-  })
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ error: 'Failed to mark as read' }))
-    throw new Error(error.error || 'Failed to mark as read')
-  }
-}
-
-// =============================================================================
-// Message API
-// =============================================================================
-
-async function listMessages(conversationId: string, params: MessageListParams = {}): Promise<MessageListResult> {
-  const searchParams = new URLSearchParams()
-  if (params.before) searchParams.set('before', params.before)
-  if (params.limit) searchParams.set('limit', String(params.limit))
-
-  const response = await fetch(`/api/inbox/conversations/${conversationId}/messages?${searchParams.toString()}`)
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ error: 'Failed to fetch messages' }))
-    throw new Error(error.error || 'Failed to fetch messages')
-  }
-  return response.json()
-}
-
-async function sendMessage(conversationId: string, params: SendMessageParams): Promise<InboxMessage> {
-  const response = await fetch(`/api/inbox/conversations/${conversationId}/messages`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(params),
-  })
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ error: 'Failed to send message' }))
-    throw new Error(error.error || 'Failed to send message')
-  }
-  return response.json()
-}
-
-// =============================================================================
-// Labels API
-// =============================================================================
-
-async function listLabels(): Promise<InboxLabel[]> {
-  const response = await fetch('/api/inbox/labels')
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ error: 'Failed to fetch labels' }))
-    throw new Error(error.error || 'Failed to fetch labels')
-  }
-  return response.json()
-}
-
-async function createLabel(params: CreateLabelParams): Promise<InboxLabel> {
-  const response = await fetch('/api/inbox/labels', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(params),
-  })
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ error: 'Failed to create label' }))
-    throw new Error(error.error || 'Failed to create label')
-  }
-  return response.json()
-}
-
-async function deleteLabel(id: string): Promise<void> {
-  const response = await fetch(`/api/inbox/labels/${id}`, {
-    method: 'DELETE',
-  })
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ error: 'Failed to delete label' }))
-    throw new Error(error.error || 'Failed to delete label')
-  }
-}
-
-// =============================================================================
-// Quick Replies API
-// =============================================================================
-
-async function listQuickReplies(): Promise<InboxQuickReply[]> {
-  const response = await fetch('/api/inbox/quick-replies')
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ error: 'Failed to fetch quick replies' }))
-    throw new Error(error.error || 'Failed to fetch quick replies')
-  }
-  return response.json()
-}
-
-async function createQuickReply(params: CreateQuickReplyParams): Promise<InboxQuickReply> {
-  const response = await fetch('/api/inbox/quick-replies', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(params),
-  })
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ error: 'Failed to create quick reply' }))
-    throw new Error(error.error || 'Failed to create quick reply')
-  }
-  return response.json()
-}
-
-async function updateQuickReply(id: string, params: Partial<CreateQuickReplyParams>): Promise<InboxQuickReply> {
-  const response = await fetch(`/api/inbox/quick-replies/${id}`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(params),
-  })
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ error: 'Failed to update quick reply' }))
-    throw new Error(error.error || 'Failed to update quick reply')
-  }
-  return response.json()
-}
-
-async function deleteQuickReply(id: string): Promise<void> {
-  const response = await fetch(`/api/inbox/quick-replies/${id}`, {
-    method: 'DELETE',
-  })
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ error: 'Failed to delete quick reply' }))
-    throw new Error(error.error || 'Failed to delete quick reply')
-  }
-}
-
-// =============================================================================
-// T050: Handoff Operations
-// =============================================================================
-
 export interface HandoffParams {
   reason?: string
   summary?: string
@@ -264,40 +83,6 @@ export interface HandoffResult {
   conversation: InboxConversation
   message: string
 }
-
-/**
- * Transfer conversation from bot to human (handoff)
- */
-async function handoffToHuman(conversationId: string, params: HandoffParams = {}): Promise<HandoffResult> {
-  const response = await fetch(`/api/inbox/conversations/${conversationId}/handoff`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(params),
-  })
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ error: 'Failed to handoff conversation' }))
-    throw new Error(error.error || 'Failed to handoff conversation')
-  }
-  return response.json()
-}
-
-/**
- * Return conversation from human to bot (end handoff)
- */
-async function returnToBot(conversationId: string): Promise<HandoffResult> {
-  const response = await fetch(`/api/inbox/conversations/${conversationId}/handoff`, {
-    method: 'DELETE',
-  })
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ error: 'Failed to return to bot' }))
-    throw new Error(error.error || 'Failed to return to bot')
-  }
-  return response.json()
-}
-
-// =============================================================================
-// T068: Pause/Resume Automation
-// =============================================================================
 
 export interface PauseResult {
   success: boolean
@@ -312,75 +97,97 @@ export interface ResumeResult {
   message: string
 }
 
-/**
- * Pause automation for a conversation temporarily
- */
-async function pauseAutomation(
-  conversationId: string,
-  durationMinutes: number,
-  reason?: string
-): Promise<PauseResult> {
-  const response = await fetch(`/api/inbox/conversations/${conversationId}/pause`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      duration_minutes: durationMinutes,
-      reason,
-    }),
-  })
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ error: 'Failed to pause automation' }))
-    throw new Error(error.error || 'Failed to pause automation')
-  }
-  return response.json()
-}
-
-/**
- * Resume automation for a conversation immediately
- */
-async function resumeAutomation(conversationId: string): Promise<ResumeResult> {
-  const response = await fetch(`/api/inbox/conversations/${conversationId}/resume`, {
-    method: 'POST',
-  })
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ error: 'Failed to resume automation' }))
-    throw new Error(error.error || 'Failed to resume automation')
-  }
-  return response.json()
-}
-
 // =============================================================================
 // Export Service
 // =============================================================================
 
 export const inboxService = {
   // Conversations
-  listConversations,
-  getConversation,
-  updateConversation,
-  deleteConversation,
-  markAsRead,
+  listConversations: (params: ConversationListParams = {}): Promise<ConversationListResult> => {
+    const searchParams = new URLSearchParams()
+    if (params.page) searchParams.set('page', String(params.page))
+    if (params.limit) searchParams.set('limit', String(params.limit))
+    if (params.status) searchParams.set('status', params.status)
+    if (params.mode) searchParams.set('mode', params.mode)
+    if (params.labelId) searchParams.set('label_id', params.labelId)
+    if (params.search) searchParams.set('search', params.search)
+    return api.get<ConversationListResult>(`/api/inbox/conversations?${searchParams.toString()}`)
+  },
+
+  getConversation: (id: string): Promise<InboxConversation> =>
+    api.get<InboxConversation>(`/api/inbox/conversations/${id}`),
+
+  updateConversation: (id: string, params: UpdateConversationParams): Promise<InboxConversation> =>
+    api.patch<InboxConversation>(`/api/inbox/conversations/${id}`, params),
+
+  deleteConversation: (id: string): Promise<void> =>
+    api.del(`/api/inbox/conversations/${id}`),
+
+  markAsRead: (conversationId: string): Promise<void> =>
+    api.post(`/api/inbox/conversations/${conversationId}/read`),
 
   // Messages
-  listMessages,
-  sendMessage,
+  listMessages: (conversationId: string, params: MessageListParams = {}): Promise<MessageListResult> => {
+    const searchParams = new URLSearchParams()
+    if (params.before) searchParams.set('before', params.before)
+    if (params.limit) searchParams.set('limit', String(params.limit))
+    return api.get<MessageListResult>(
+      `/api/inbox/conversations/${conversationId}/messages?${searchParams.toString()}`
+    )
+  },
+
+  sendMessage: (conversationId: string, params: SendMessageParams): Promise<InboxMessage> =>
+    api.post<InboxMessage>(`/api/inbox/conversations/${conversationId}/messages`, params),
 
   // Labels
-  listLabels,
-  createLabel,
-  deleteLabel,
+  listLabels: (): Promise<InboxLabel[]> =>
+    api.get<InboxLabel[]>('/api/inbox/labels'),
+
+  createLabel: (params: CreateLabelParams): Promise<InboxLabel> =>
+    api.post<InboxLabel>('/api/inbox/labels', params),
+
+  deleteLabel: (id: string): Promise<void> =>
+    api.del(`/api/inbox/labels/${id}`),
 
   // Quick Replies
-  listQuickReplies,
-  createQuickReply,
-  updateQuickReply,
-  deleteQuickReply,
+  listQuickReplies: (): Promise<InboxQuickReply[]> =>
+    api.get<InboxQuickReply[]>('/api/inbox/quick-replies'),
 
-  // Handoff
-  handoffToHuman,
-  returnToBot,
+  createQuickReply: (params: CreateQuickReplyParams): Promise<InboxQuickReply> =>
+    api.post<InboxQuickReply>('/api/inbox/quick-replies', params),
 
-  // Pause/Resume
-  pauseAutomation,
-  resumeAutomation,
+  updateQuickReply: (id: string, params: Partial<CreateQuickReplyParams>): Promise<InboxQuickReply> =>
+    api.patch<InboxQuickReply>(`/api/inbox/quick-replies/${id}`, params),
+
+  deleteQuickReply: (id: string): Promise<void> =>
+    api.del(`/api/inbox/quick-replies/${id}`),
+
+  // Handoff (T050)
+  handoffToHuman: (conversationId: string, params: HandoffParams = {}): Promise<HandoffResult> =>
+    api.post<HandoffResult>(`/api/inbox/conversations/${conversationId}/handoff`, params),
+
+  returnToBot: async (conversationId: string): Promise<HandoffResult> => {
+    const response = await fetch(`/api/inbox/conversations/${conversationId}/handoff`, {
+      method: 'DELETE',
+    })
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: 'Failed to return to bot' }))
+      throw new Error(error.error || 'Failed to return to bot')
+    }
+    return response.json()
+  },
+
+  // Pause/Resume Automation (T068)
+  pauseAutomation: (
+    conversationId: string,
+    durationMinutes: number,
+    reason?: string
+  ): Promise<PauseResult> =>
+    api.post<PauseResult>(`/api/inbox/conversations/${conversationId}/pause`, {
+      duration_minutes: durationMinutes,
+      reason,
+    }),
+
+  resumeAutomation: (conversationId: string): Promise<ResumeResult> =>
+    api.post<ResumeResult>(`/api/inbox/conversations/${conversationId}/resume`),
 }

@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { api } from '@/lib/api'
 
 // Dados do contato vindos do JOIN
 export type SubmissionContact = {
@@ -103,15 +104,6 @@ function parseList(raw: unknown): FlowSubmission[] {
   return out
 }
 
-async function readErrorMessage(res: Response, fallback: string): Promise<string> {
-  try {
-    const data = await res.json().catch(() => null)
-    return (data?.error && String(data.error)) || fallback
-  } catch {
-    return fallback
-  }
-}
-
 export const submissionsService = {
   async list(params: SubmissionsListParams = {}): Promise<SubmissionsListResult> {
     const searchParams = new URLSearchParams()
@@ -123,13 +115,8 @@ export const submissionsService = {
     if (params.flowId) searchParams.set('flowId', params.flowId)
 
     const url = `/api/submissions?${searchParams.toString()}`
-    const res = await fetch(url, { method: 'GET', credentials: 'include' })
+    const json = await api.get<{ data: unknown[]; total: number; limit: number; offset: number }>(url)
 
-    if (!res.ok) {
-      throw new Error(await readErrorMessage(res, 'Falha ao listar submissões'))
-    }
-
-    const json = await res.json()
     return {
       data: parseList(json.data),
       total: Number(json.total) || 0,

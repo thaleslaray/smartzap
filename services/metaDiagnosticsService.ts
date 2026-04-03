@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { api } from '@/lib/api'
 
 export type MetaDiagnosticsCheckStatus = 'pass' | 'warn' | 'fail' | 'info'
 
@@ -88,20 +89,11 @@ export type Simulate10033Response =
     }
 
 export const metaDiagnosticsService = {
-  get: async (): Promise<MetaDiagnosticsResponse> => {
-    const res = await fetch('/api/meta/diagnostics', {
+  get: (): Promise<MetaDiagnosticsResponse> =>
+    api.get<MetaDiagnosticsResponse>('/api/meta/diagnostics', {
       cache: 'no-store',
       headers: { 'Cache-Control': 'no-cache' },
-    })
-
-    const json = await res.json().catch(() => null)
-    if (!res.ok) {
-      const msg = (json as any)?.error || 'Falha ao carregar diagnóstico'
-      throw new Error(msg)
-    }
-
-    return json as MetaDiagnosticsResponse
-  },
+    }),
 
   runAction: async (action: MetaDiagnosticsAction): Promise<unknown> => {
     if (action.kind !== 'api') throw new Error('Ação inválida (não é API)')

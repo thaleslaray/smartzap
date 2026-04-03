@@ -1,5 +1,6 @@
 import { Campaign } from '../types';
 import { campaignService } from './campaignService';
+import { api } from '@/lib/api';
 
 export interface ChartDataPoint {
   name: string;
@@ -35,21 +36,16 @@ export const dashboardService = {
    * Observação: sem cache para manter o dashboard “ao vivo”.
    */
   getStats: async (): Promise<DashboardStats> => {
+    const statsFallback: StatsAPIResponse = { totalSent: 0, totalDelivered: 0, totalRead: 0, totalFailed: 0, activeCampaigns: 0, deliveryRate: 0 };
+
     // Fazer ambas chamadas em PARALELO
-    const [statsResponse, campaignsResult] = await Promise.all([
-      fetch('/api/dashboard/stats', {
+    const [stats, campaignsResult] = await Promise.all([
+      api.safeGet<StatsAPIResponse>('/api/dashboard/stats', statsFallback, {
         cache: 'no-store',
-        headers: {
-          'Cache-Control': 'no-cache',
-        },
+        headers: { 'Cache-Control': 'no-cache' },
       }),
-      campaignService.getAll()
+      campaignService.getAll(),
     ]);
-    
-    // Parse das respostas
-    const stats: StatsAPIResponse = statsResponse.ok 
-      ? await statsResponse.json() 
-      : { totalSent: 0, totalDelivered: 0, totalRead: 0, totalFailed: 0, activeCampaigns: 0, deliveryRate: 0 };
     
     const campaignsPayload =
       campaignsResult as unknown as Campaign[] | { data?: Campaign[] };

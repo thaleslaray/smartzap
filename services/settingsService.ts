@@ -1,4 +1,5 @@
 import type { AiFallbackConfig, AiPromptsConfig, AiRoutesConfig } from '../lib/ai/ai-center-defaults';
+import { api } from '@/lib/api';
 import { storage } from '../lib/storage';
 import { AppSettings, CalendarBookingConfig, WorkflowExecutionConfig } from '../types';
 
@@ -67,11 +68,8 @@ export const settingsService = {
    * Get ALL independent settings in a single request
    * Reduces 8+ API calls to 1 for Settings page
    */
-  getAll: async (): Promise<AllSettingsResponse> => {
-    const response = await fetch('/api/settings/all', { cache: 'no-store' })
-    if (!response.ok) throw new Error('Failed to fetch all settings')
-    return response.json()
-  },
+  getAll: (): Promise<AllSettingsResponse> =>
+    api.get<AllSettingsResponse>('/api/settings/all', { cache: 'no-store' }),
 
   /**
    * Get settings - combines local storage (UI state) with server credentials
@@ -109,37 +107,21 @@ export const settingsService = {
   // WORKFLOW BUILDER DEFAULT
   // =============================================================================
 
-  getWorkflowBuilderDefault: async (): Promise<{ defaultWorkflowId: string }> => {
-    const response = await fetch('/api/settings/workflow-builder')
-    if (!response.ok) throw new Error('Failed to fetch workflow builder default')
-    return response.json()
-  },
+  getWorkflowBuilderDefault: (): Promise<{ defaultWorkflowId: string }> =>
+    api.get<{ defaultWorkflowId: string }>('/api/settings/workflow-builder'),
 
-  saveWorkflowBuilderDefault: async (defaultWorkflowId: string): Promise<void> => {
-    const response = await fetch('/api/settings/workflow-builder', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ defaultWorkflowId }),
-    })
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({}))
-      throw new Error((error as any)?.error || 'Failed to save workflow builder default')
-    }
-  },
+  saveWorkflowBuilderDefault: (defaultWorkflowId: string): Promise<void> =>
+    api.post<void>('/api/settings/workflow-builder', { defaultWorkflowId }),
 
   // =============================================================================
   // WORKFLOW EXECUTION SETTINGS
   // =============================================================================
 
-  getWorkflowExecutionConfig: async (): Promise<{
+  getWorkflowExecutionConfig: (): Promise<{
     ok: boolean;
     source: 'db' | 'env';
     config: WorkflowExecutionConfig;
-  }> => {
-    const response = await fetch('/api/settings/workflow-execution', { cache: 'no-store' })
-    if (!response.ok) throw new Error('Failed to fetch workflow execution config')
-    return response.json()
-  },
+  }> => api.get('/api/settings/workflow-execution', { cache: 'no-store' }),
 
   saveWorkflowExecutionConfig: async (data: Partial<WorkflowExecutionConfig>): Promise<WorkflowExecutionConfig> => {
     const response = await fetch('/api/settings/workflow-execution', {
@@ -158,36 +140,18 @@ export const settingsService = {
   // META APP (opcional) — debug_token e diagnóstico avançado
   // =============================================================================
 
-  getMetaAppConfig: async (): Promise<{
+  getMetaAppConfig: (): Promise<{
     source: 'db' | 'env' | 'none'
     appId: string | null
     hasAppSecret: boolean
     isConfigured: boolean
-  }> => {
-    const response = await fetch('/api/settings/meta-app', { cache: 'no-store' })
-    if (!response.ok) throw new Error('Failed to fetch Meta App config')
-    return response.json()
-  },
+  }> => api.get('/api/settings/meta-app', { cache: 'no-store' }),
 
-  saveMetaAppConfig: async (data: { appId: string; appSecret: string }): Promise<void> => {
-    const response = await fetch('/api/settings/meta-app', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
-    })
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({}))
-      throw new Error((error as any)?.error || 'Failed to save Meta App config')
-    }
-  },
+  saveMetaAppConfig: (data: { appId: string; appSecret: string }): Promise<void> =>
+    api.post<void>('/api/settings/meta-app', data),
 
-  removeMetaAppConfig: async (): Promise<void> => {
-    const response = await fetch('/api/settings/meta-app', { method: 'DELETE' })
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({}))
-      throw new Error((error as any)?.error || 'Failed to remove Meta App config')
-    }
-  },
+  removeMetaAppConfig: (): Promise<void> =>
+    api.del('/api/settings/meta-app'),
 
   /**
    * Save settings - credentials go to server, UI state stays local
@@ -249,24 +213,13 @@ export const settingsService = {
   /**
    * Fetch phone details from Meta API
    */
-  fetchPhoneDetails: async (credentials: { phoneNumberId: string, accessToken: string }) => {
-    const response = await fetch('/api/settings/phone-number', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(credentials)
-    });
-    if (!response.ok) throw new Error('Failed to fetch phone details');
-    return response.json();
-  },
+  fetchPhoneDetails: (credentials: { phoneNumberId: string, accessToken: string }) =>
+    api.post<{ display_phone_number?: string; quality_rating?: string; verified_name?: string; [key: string]: unknown }>('/api/settings/phone-number', credentials),
 
   /**
    * Get system health status
    */
-  getHealth: async () => {
-    const response = await fetch('/api/health');
-    if (!response.ok) throw new Error('Failed to fetch health status');
-    return response.json();
-  },
+  getHealth: () => api.get('/api/health'),
 
   // =============================================================================
   // TEST CONNECTION (sem salvar)
@@ -315,16 +268,12 @@ export const settingsService = {
   /**
    * Get AI settings
    */
-  getAIConfig: async () => {
-    const response = await fetch('/api/settings/ai');
-    if (!response.ok) throw new Error('Failed to fetch AI settings');
-    return response.json();
-  },
+  getAIConfig: () => api.get('/api/settings/ai'),
 
   /**
    * Save AI settings (including OCR configuration)
    */
-  saveAIConfig: async (data: {
+  saveAIConfig: (data: {
     apiKey?: string;
     apiKeyProvider?: string;
     provider?: string;
@@ -336,20 +285,7 @@ export const settingsService = {
     ocr_provider?: OCRProviderType;
     ocr_gemini_model?: string;
     mistral_api_key?: string;
-  }) => {
-    const response = await fetch('/api/settings/ai', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || 'Failed to save AI settings');
-    }
-
-    return response.json();
-  },
+  }) => api.post('/api/settings/ai', data),
 
   /**
    * Remove API key for a specific provider (including mistral for OCR)
@@ -374,58 +310,29 @@ export const settingsService = {
   /**
    * Get test contact from Supabase
    */
-  getTestContact: async (): Promise<{ name?: string; phone: string } | null> => {
-    try {
-      const response = await fetch('/api/settings/test-contact');
-      if (!response.ok) return null;
-      return response.json();
-    } catch (error) {
-      console.error('Error fetching test contact:', error);
-      return null;
-    }
-  },
+  getTestContact: (): Promise<{ name?: string; phone: string } | null> =>
+    api.safeGet<{ name?: string; phone: string } | null>('/api/settings/test-contact', null),
 
   /**
    * Save test contact to Supabase
    */
-  saveTestContact: async (contact: { name?: string; phone: string }): Promise<void> => {
-    const response = await fetch('/api/settings/test-contact', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(contact),
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || 'Failed to save test contact');
-    }
-  },
+  saveTestContact: (contact: { name?: string; phone: string }): Promise<void> =>
+    api.post<void>('/api/settings/test-contact', contact),
 
   /**
    * Remove test contact from Supabase
    */
-  removeTestContact: async (): Promise<void> => {
-    const response = await fetch('/api/settings/test-contact', {
-      method: 'DELETE',
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || 'Failed to remove test contact');
-    }
-  },
+  removeTestContact: (): Promise<void> =>
+    api.del('/api/settings/test-contact'),
 
   // =============================================================================
   // WHATSAPP TURBO (Adaptive Throttle) - Persisted in Supabase settings
   // =============================================================================
 
-  getWhatsAppThrottle: async (): Promise<any> => {
-    const response = await fetch('/api/settings/whatsapp-throttle')
-    if (!response.ok) throw new Error('Failed to fetch WhatsApp throttle config')
-    return response.json()
-  },
+  getWhatsAppThrottle: (): Promise<any> =>
+    api.get('/api/settings/whatsapp-throttle'),
 
-  saveWhatsAppThrottle: async (data: {
+  saveWhatsAppThrottle: (data: {
     enabled?: boolean
     sendConcurrency?: number
     batchSize?: number
@@ -436,105 +343,44 @@ export const settingsService = {
     minIncreaseGapSec?: number
     sendFloorDelayMs?: number
     resetState?: boolean
-  }): Promise<any> => {
-    const response = await fetch('/api/settings/whatsapp-throttle', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
-    })
-
-    const json = await response.json().catch(() => ({}))
-    if (!response.ok) {
-      throw new Error((json as any)?.error || 'Failed to save WhatsApp throttle config')
-    }
-
-    return json
-  },
+  }): Promise<any> => api.post('/api/settings/whatsapp-throttle', data),
 
   // =============================================================================
   // AUTO-SUPPRESSÃO (Proteção de Qualidade) - Persisted in Supabase settings
   // =============================================================================
 
-  getAutoSuppression: async (): Promise<any> => {
-    const response = await fetch('/api/settings/auto-suppression')
-    if (!response.ok) throw new Error('Failed to fetch auto-suppression config')
-    return response.json()
-  },
+  getAutoSuppression: (): Promise<any> =>
+    api.get('/api/settings/auto-suppression'),
 
-  saveAutoSuppression: async (data: any): Promise<any> => {
-    const response = await fetch('/api/settings/auto-suppression', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
-    })
-
-    const json = await response.json().catch(() => ({}))
-    if (!response.ok) {
-      throw new Error((json as any)?.error || 'Failed to save auto-suppression config')
-    }
-
-    return json
-  },
+  saveAutoSuppression: (data: any): Promise<any> =>
+    api.post('/api/settings/auto-suppression', data),
 
   // =============================================================================
   // CALENDAR BOOKING CONFIG (Google Calendar)
   // =============================================================================
 
-  getCalendarBookingConfig: async (): Promise<{
+  getCalendarBookingConfig: (): Promise<{
     ok: boolean;
     source: 'db' | 'default';
     config: CalendarBookingConfig;
-  }> => {
-    const response = await fetch('/api/settings/calendar-booking', { cache: 'no-store' })
-    if (!response.ok) throw new Error('Failed to fetch calendar booking config')
-    return response.json()
-  },
+  }> => api.get('/api/settings/calendar-booking', { cache: 'no-store' }),
 
-  saveCalendarBookingConfig: async (data: Partial<CalendarBookingConfig>): Promise<void> => {
-    const response = await fetch('/api/settings/calendar-booking', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
-    })
-
-    const json = await response.json().catch(() => ({}))
-    if (!response.ok) {
-      throw new Error((json as any)?.error || 'Failed to save calendar booking config')
-    }
-  },
+  saveCalendarBookingConfig: (data: Partial<CalendarBookingConfig>): Promise<void> =>
+    api.post<void>('/api/settings/calendar-booking', data),
 
   // =============================================================================
   // UPSTASH CONFIG (Métricas de uso do QStash)
   // =============================================================================
 
-  getUpstashConfig: async (): Promise<{
+  getUpstashConfig: (): Promise<{
     configured: boolean;
     email: string;
     hasApiKey: boolean;
-  }> => {
-    const response = await fetch('/api/settings/upstash', { cache: 'no-store' })
-    if (!response.ok) throw new Error('Failed to fetch Upstash config')
-    return response.json()
-  },
+  }> => api.get('/api/settings/upstash', { cache: 'no-store' }),
 
-  saveUpstashConfig: async (data: { email: string; apiKey: string }): Promise<void> => {
-    const response = await fetch('/api/settings/upstash', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
-    })
+  saveUpstashConfig: (data: { email: string; apiKey: string }): Promise<void> =>
+    api.post<void>('/api/settings/upstash', data),
 
-    const json = await response.json().catch(() => ({}))
-    if (!response.ok) {
-      throw new Error((json as any)?.error || 'Failed to save Upstash config')
-    }
-  },
-
-  removeUpstashConfig: async (): Promise<void> => {
-    const response = await fetch('/api/settings/upstash', { method: 'DELETE' })
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({}))
-      throw new Error((error as any)?.error || 'Failed to remove Upstash config')
-    }
-  },
+  removeUpstashConfig: (): Promise<void> =>
+    api.del('/api/settings/upstash'),
 };
