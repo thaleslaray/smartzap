@@ -415,18 +415,19 @@ O SmartZap usa dois serviços do Upstash:
 
 ### Como resetar minha senha?
 
-1. Acesse vercel.com e faça login
-2. Clique no seu projeto SmartZap
-3. Clique em **Settings** (menu da esquerda)
-4. Clique em **Environment Variables**
-5. Ache `MASTER_PASSWORD` na lista
-6. Clique nos 3 pontinhos do lado direito → **Edit**
-7. Apague tudo e digite sua nova senha (ex: `MinhaSenha123`)
-8. Clique em **Save**
-9. Clique em **Deployments** (menu da esquerda)
-10. No primeiro da lista, clique nos 3 pontinhos → **Redeploy** → **Redeploy**
-11. Espera 1 minuto
-12. Pronto! Entra com a nova senha.
+A senha do SmartZap é a variável `MASTER_PASSWORD` no seu projeto Vercel.
+
+**Passo a passo:**
+
+1. Acesse [vercel.com](https://vercel.com) e abra seu projeto SmartZap
+2. Vá em **Settings → Environment Variables**
+3. Encontre `MASTER_PASSWORD`, clique nos 3 pontinhos → **Edit**
+4. Apague o valor atual e digite sua nova senha em texto simples (ex: `MinhaSenha123`)
+5. Clique em **Save**
+6. Vá em **Deployments**, clique nos 3 pontinhos do deploy mais recente → **Redeploy**
+7. Aguarde ~1 minuto e faça login com a nova senha.
+
+> **Importante:** coloque apenas texto simples no campo — sem aspas, sem hash, sem espaços extras.
 
 ---
 
