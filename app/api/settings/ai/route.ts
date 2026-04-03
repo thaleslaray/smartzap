@@ -44,8 +44,8 @@ async function validateApiKey(provider: string, apiKey: string): Promise<Validat
 
     const configs: Record<string, ProviderConfig> = {
         google: {
-            url: `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`,
-            headers: {},
+            url: 'https://generativelanguage.googleapis.com/v1beta/models',
+            headers: { 'x-goog-api-key': apiKey },
         },
         openai: {
             url: 'https://api.openai.com/v1/models',

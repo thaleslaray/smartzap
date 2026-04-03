@@ -76,7 +76,6 @@
     "@supabase/supabase-js": "^2.86.2",
     "@tailwindcss/postcss": "^4.1.17",
     "@tanstack/react-query": "^5.0.0",
-    "@testing-library/dom": "^10.4.1",
     "@types/swagger-ui-react": "^5.18.0",
     "@upstash/qstash": "^2.9.0",
     "@upstash/redis": "^1.36.2",
@@ -129,6 +128,7 @@
   "devDependencies": {
     "@next/eslint-plugin-next": "^16.1.6",
     "@playwright/test": "^1.49.0",
+    "@testing-library/dom": "^10.4.1",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.0.1",
     "@types/bcryptjs": "^2.4.6",

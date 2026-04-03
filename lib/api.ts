@@ -44,7 +44,7 @@ export const api = {
         }
     },
 
-    /** POST com corpo JSON — lança Error com mensagem do servidor. */
+    /** POST com corpo JSON — lança Error com mensagem do servidor. Retorna null em 204. */
     async post<T>(path: string, body?: unknown, init?: RequestInit): Promise<T> {
         const response = await fetch(path, {
             method: 'POST',
@@ -53,10 +53,11 @@ export const api = {
             ...init,
         });
         if (!response.ok) throw new Error(await extractError(response));
+        if (response.status === 204 || response.headers.get('content-length') === '0') return null as T;
         return response.json();
     },
 
-    /** PATCH com corpo JSON — lança Error com mensagem do servidor. */
+    /** PATCH com corpo JSON — lança Error com mensagem do servidor. Retorna null em 204. */
     async patch<T>(path: string, body?: unknown, init?: RequestInit): Promise<T> {
         const response = await fetch(path, {
             method: 'PATCH',
@@ -65,6 +66,7 @@ export const api = {
             ...init,
         });
         if (!response.ok) throw new Error(await extractError(response));
+        if (response.status === 204 || response.headers.get('content-length') === '0') return null as T;
         return response.json();
     },
 
