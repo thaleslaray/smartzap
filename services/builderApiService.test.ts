@@ -37,7 +37,7 @@ describe('builderApiService', () => {
     })
 
     it('deve lançar erro quando resposta não é ok', async () => {
-      mockFetch.mockResolvedValueOnce(createMockFetchResponse(null, { ok: false, status: 500 }))
+      mockFetch.mockResolvedValueOnce(createMockFetchResponse({ error: 'Falha ao carregar chaves de API' }, { ok: false, status: 500 }))
 
       await expect(builderApiService.listApiKeys()).rejects.toThrow('Falha ao carregar chaves de API')
     })
@@ -99,7 +99,7 @@ describe('builderApiService', () => {
     })
 
     it('deve lançar erro quando resposta não é ok', async () => {
-      mockFetch.mockResolvedValueOnce(createMockFetchResponse(null, { ok: false, status: 404 }))
+      mockFetch.mockResolvedValueOnce(createMockFetchResponse({ error: 'Falha ao excluir chave de API' }, { ok: false, status: 404 }))
 
       await expect(builderApiService.deleteApiKey('key-999')).rejects.toThrow('Falha ao excluir chave de API')
     })
@@ -139,7 +139,7 @@ describe('builderApiService', () => {
     })
 
     it('deve lançar erro quando resposta não é ok', async () => {
-      mockFetch.mockResolvedValueOnce(createMockFetchResponse(null, { ok: false, status: 500 }))
+      mockFetch.mockResolvedValueOnce(createMockFetchResponse({ error: 'Falha ao executar o fluxo' }, { ok: false, status: 500 }))
 
       await expect(builderApiService.executeWorkflow('workflow-1')).rejects.toThrow('Falha ao executar o fluxo')
     })

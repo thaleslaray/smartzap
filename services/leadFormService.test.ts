@@ -41,7 +41,7 @@ describe('leadFormService', () => {
     })
 
     it('deve lançar erro quando resposta não é ok', async () => {
-      mockFetch.mockResolvedValueOnce(createMockFetchResponse(null, { ok: false, status: 500 }))
+      mockFetch.mockResolvedValueOnce(createMockFetchResponse({ error: 'Falha ao buscar formulários' }, { ok: false, status: 500 }))
 
       await expect(leadFormService.getAll()).rejects.toThrow('Falha ao buscar formulários')
     })

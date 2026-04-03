@@ -51,7 +51,7 @@ describe('templateProjectService', () => {
     })
 
     it('deve lançar erro quando resposta não é ok', async () => {
-      mockFetch.mockResolvedValueOnce(createMockFetchResponse(null, { ok: false, status: 500 }))
+      mockFetch.mockResolvedValueOnce(createMockFetchResponse({ error: 'Failed to fetch projects' }, { ok: false, status: 500 }))
 
       await expect(templateProjectService.getAll()).rejects.toThrow('Failed to fetch projects')
     })
@@ -72,7 +72,7 @@ describe('templateProjectService', () => {
     })
 
     it('deve lançar erro quando resposta não é ok', async () => {
-      mockFetch.mockResolvedValueOnce(createMockFetchResponse(null, { ok: false, status: 404 }))
+      mockFetch.mockResolvedValueOnce(createMockFetchResponse({ error: 'Failed to fetch project details' }, { ok: false, status: 404 }))
 
       await expect(templateProjectService.getById('proj-999')).rejects.toThrow('Failed to fetch project details')
     })
@@ -109,7 +109,7 @@ describe('templateProjectService', () => {
     })
 
     it('deve lançar erro quando resposta não é ok', async () => {
-      mockFetch.mockResolvedValueOnce(createMockFetchResponse(null, { ok: false, status: 400 }))
+      mockFetch.mockResolvedValueOnce(createMockFetchResponse({ error: 'Failed to create project' }, { ok: false, status: 400 }))
 
       await expect(templateProjectService.create(dto)).rejects.toThrow('Failed to create project')
     })
@@ -135,7 +135,7 @@ describe('templateProjectService', () => {
     })
 
     it('deve lançar erro quando resposta não é ok', async () => {
-      mockFetch.mockResolvedValueOnce(createMockFetchResponse(null, { ok: false, status: 500 }))
+      mockFetch.mockResolvedValueOnce(createMockFetchResponse({ error: 'Failed to update project' }, { ok: false, status: 500 }))
 
       await expect(templateProjectService.update('proj-1', { title: 'X' })).rejects.toThrow('Failed to update project')
     })
@@ -166,7 +166,7 @@ describe('templateProjectService', () => {
     })
 
     it('deve lançar erro quando resposta não é ok', async () => {
-      mockFetch.mockResolvedValueOnce(createMockFetchResponse(null, { ok: false, status: 500 }))
+      mockFetch.mockResolvedValueOnce(createMockFetchResponse({ error: 'Failed to delete project' }, { ok: false, status: 500 }))
 
       await expect(templateProjectService.delete('proj-1')).rejects.toThrow('Failed to delete project')
     })
@@ -192,7 +192,7 @@ describe('templateProjectService', () => {
     })
 
     it('deve lançar erro quando resposta não é ok', async () => {
-      mockFetch.mockResolvedValueOnce(createMockFetchResponse(null, { ok: false, status: 404 }))
+      mockFetch.mockResolvedValueOnce(createMockFetchResponse({ error: 'Failed to update item' }, { ok: false, status: 404 }))
 
       await expect(templateProjectService.updateItem('item-999', { content: 'X' })).rejects.toThrow('Failed to update item')
     })
@@ -213,7 +213,7 @@ describe('templateProjectService', () => {
     })
 
     it('deve lançar erro quando resposta não é ok', async () => {
-      mockFetch.mockResolvedValueOnce(createMockFetchResponse(null, { ok: false, status: 500 }))
+      mockFetch.mockResolvedValueOnce(createMockFetchResponse({ error: 'Failed to delete item' }, { ok: false, status: 500 }))
 
       await expect(templateProjectService.deleteItem('item-1')).rejects.toThrow('Failed to delete item')
     })

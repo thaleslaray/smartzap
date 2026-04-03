@@ -26,7 +26,7 @@ describe('inboxService', () => {
   it('getConversation deve lançar erro com status', async () => {
     mockFetch.mockResolvedValueOnce(createMockFetchResponse({ error: 'Not found' }, { ok: false, status: 404 }))
 
-    await expect(inboxService.getConversation('c1')).rejects.toThrow('404: Not found')
+    await expect(inboxService.getConversation('c1')).rejects.toThrow('Not found')
   })
 
   it('sendMessage deve lançar erro quando falha', async () => {

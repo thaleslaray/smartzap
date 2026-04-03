@@ -32,10 +32,7 @@ describe('manualDraftsService', () => {
 
       const result = await manualDraftsService.get('draft-1')
 
-      expect(mockFetch).toHaveBeenCalledWith('/api/templates/drafts/draft-1', {
-        method: 'GET',
-        credentials: 'include',
-      })
+      expect(mockFetch).toHaveBeenCalledWith('/api/templates/drafts/draft-1')
       expect(result).toEqual(mockDraft)
     })
 
@@ -65,10 +62,7 @@ describe('manualDraftsService', () => {
 
       const result = await manualDraftsService.list()
 
-      expect(mockFetch).toHaveBeenCalledWith('/api/templates/drafts', {
-        method: 'GET',
-        credentials: 'include',
-      })
+      expect(mockFetch).toHaveBeenCalledWith('/api/templates/drafts')
       expect(result).toEqual(drafts)
     })
 
@@ -109,7 +103,6 @@ describe('manualDraftsService', () => {
 
       expect(mockFetch).toHaveBeenCalledWith('/api/templates/drafts', {
         method: 'POST',
-        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(input),
       })
@@ -138,7 +131,6 @@ describe('manualDraftsService', () => {
 
       expect(mockFetch).toHaveBeenCalledWith('/api/templates/drafts/draft-1', {
         method: 'DELETE',
-        credentials: 'include',
       })
     })
 
@@ -164,7 +156,6 @@ describe('manualDraftsService', () => {
 
       expect(mockFetch).toHaveBeenCalledWith('/api/templates/drafts/draft-1', {
         method: 'PATCH',
-        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(patch),
       })
@@ -194,7 +185,8 @@ describe('manualDraftsService', () => {
 
       expect(mockFetch).toHaveBeenCalledWith('/api/templates/drafts/draft-1/submit', {
         method: 'POST',
-        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: undefined,
       })
       expect(result).toEqual(submitResult)
     })
@@ -220,7 +212,8 @@ describe('manualDraftsService', () => {
 
       expect(mockFetch).toHaveBeenCalledWith('/api/templates/promo/clone', {
         method: 'POST',
-        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: undefined,
       })
       expect(result).toEqual(cloneResult)
     })

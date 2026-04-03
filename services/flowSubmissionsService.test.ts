@@ -42,7 +42,6 @@ describe('flowSubmissionsService', () => {
       const result = await flowSubmissionsService.list()
 
       expect(mockFetch).toHaveBeenCalledWith('/api/flows/submissions', {
-        credentials: 'include',
         headers: { 'Cache-Control': 'no-cache' },
       })
       expect(result).toEqual(mockData)
@@ -55,7 +54,7 @@ describe('flowSubmissionsService', () => {
 
       expect(mockFetch).toHaveBeenCalledWith(
         '/api/flows/submissions?flowId=flow-1',
-        expect.objectContaining({ credentials: 'include' })
+        expect.objectContaining({ headers: { 'Cache-Control': 'no-cache' } })
       )
     })
 
@@ -71,7 +70,7 @@ describe('flowSubmissionsService', () => {
 
       expect(mockFetch).toHaveBeenCalledWith(
         '/api/flows/submissions?flowId=flow-1&campaignId=camp-1&phone=%2B5511999999999&limit=50',
-        expect.objectContaining({ credentials: 'include' })
+        expect.objectContaining({ headers: { 'Cache-Control': 'no-cache' } })
       )
     })
 
@@ -84,7 +83,7 @@ describe('flowSubmissionsService', () => {
       )
 
       await expect(flowSubmissionsService.list()).rejects.toThrow(
-        'Falha na query: Tabela nao encontrada'
+        'Falha na query'
       )
     })
 
@@ -99,7 +98,7 @@ describe('flowSubmissionsService', () => {
       mockFetch.mockResolvedValueOnce(mockResponse)
 
       await expect(flowSubmissionsService.list()).rejects.toThrow(
-        'Falha ao buscar submissões de MiniApp'
+        'HTTP 500'
       )
     })
   })

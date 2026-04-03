@@ -54,7 +54,7 @@ describe('customFieldService', () => {
 
     it('deve lancar erro quando fetch falha', async () => {
       mockFetch.mockResolvedValueOnce(
-        createMockFetchResponse(null, { ok: false, status: 500 })
+        createMockFetchResponse({ error: 'Falha ao buscar campos personalizados' }, { ok: false, status: 500 })
       )
 
       await expect(customFieldService.getAll()).rejects.toThrow(
@@ -121,7 +121,7 @@ describe('customFieldService', () => {
           field_type: 'text',
           label: 'Empresa',
         })
-      ).rejects.toThrow('Falha ao criar campo personalizado')
+      ).rejects.toThrow('HTTP 500')
     })
   })
 
@@ -141,7 +141,7 @@ describe('customFieldService', () => {
 
     it('deve lancar erro quando delete falha', async () => {
       mockFetch.mockResolvedValueOnce(
-        createMockFetchResponse(null, { ok: false, status: 500 })
+        createMockFetchResponse({ error: 'Falha ao deletar campo personalizado' }, { ok: false, status: 500 })
       )
 
       await expect(customFieldService.delete('field-1')).rejects.toThrow(

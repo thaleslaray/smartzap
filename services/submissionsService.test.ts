@@ -59,8 +59,7 @@ describe('submissionsService', () => {
       })
 
       expect(mockFetch).toHaveBeenCalledWith(
-        '/api/submissions?limit=20&search=teste&campaignId=camp-1&flowId=flow-1',
-        { method: 'GET', credentials: 'include' }
+        '/api/submissions?limit=20&search=teste&campaignId=camp-1&flowId=flow-1'
       )
       expect(result.data).toEqual([mockSubmission])
       expect(result.total).toBe(1)
@@ -74,10 +73,7 @@ describe('submissionsService', () => {
 
       const result = await submissionsService.list()
 
-      expect(mockFetch).toHaveBeenCalledWith('/api/submissions?', {
-        method: 'GET',
-        credentials: 'include',
-      })
+      expect(mockFetch).toHaveBeenCalledWith('/api/submissions?')
       expect(result.data).toEqual([])
       expect(result.total).toBe(0)
     })

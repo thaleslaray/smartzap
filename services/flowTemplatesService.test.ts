@@ -33,10 +33,7 @@ describe('flowTemplatesService', () => {
 
       const result = await flowTemplatesService.list()
 
-      expect(mockFetch).toHaveBeenCalledWith('/api/flows/templates', {
-        method: 'GET',
-        credentials: 'include',
-      })
+      expect(mockFetch).toHaveBeenCalledWith('/api/flows/templates')
       expect(result).toEqual(mockTemplates)
     })
 

@@ -10,6 +10,8 @@ export type FlowTemplateDTO = {
 }
 
 export const flowTemplatesService = {
-  list: (): Promise<FlowTemplateDTO[]> =>
-    api.get<FlowTemplateDTO[]>('/api/flows/templates'),
+  async list(): Promise<FlowTemplateDTO[]> {
+    const data = await api.get<unknown>('/api/flows/templates')
+    return Array.isArray(data) ? (data as FlowTemplateDTO[]) : []
+  },
 }
