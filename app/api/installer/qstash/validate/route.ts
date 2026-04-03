@@ -28,6 +28,11 @@ export async function POST(req: NextRequest) {
         const payload = JSON.parse(Buffer.from(payloadB64, 'base64url').toString())
         if (payload.iss && typeof payload.iss === 'string') {
           qstashBaseUrl = payload.iss.replace(/\/$/, '')
+          // Validar que o URL é do domínio Upstash (previne SSRF via JWT manipulado)
+          const isUpstashDomain = /^https:\/\/[a-z0-9][a-z0-9-]*\.upstash\.io$/i.test(qstashBaseUrl)
+          if (!isUpstashDomain) {
+            qstashBaseUrl = 'https://qstash.upstash.io' // fallback seguro
+          }
         }
       }
     } catch {
