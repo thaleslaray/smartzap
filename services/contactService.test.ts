@@ -145,4 +145,29 @@ describe('contactService', () => {
       expect(deleted).toBe(2)
     })
   })
+
+  describe('bulkUpdateTags', () => {
+    it('deve chamar API com ids, tagsToAdd e tagsToRemove e retornar updated', async () => {
+      mockFetch.mockResolvedValueOnce(createMockFetchResponse({ updated: 3 }))
+
+      const updated = await contactService.bulkUpdateTags(['c1', 'c2', 'c3'], ['vip'], ['free'])
+
+      expect(mockFetch).toHaveBeenCalledWith('/api/contacts/bulk-tags', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: ['c1', 'c2', 'c3'], tagsToAdd: ['vip'], tagsToRemove: ['free'] }),
+      })
+      expect(updated).toBe(3)
+    })
+
+    it('deve lançar erro quando API retorna status não-ok', async () => {
+      mockFetch.mockResolvedValueOnce(
+        createMockFetchResponse({ error: 'Contatos não encontrados' }, { ok: false })
+      )
+
+      await expect(
+        contactService.bulkUpdateTags(['c1'], ['vip'], [])
+      ).rejects.toThrow('Contatos não encontrados')
+    })
+  })
 })

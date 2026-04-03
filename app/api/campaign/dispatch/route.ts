@@ -55,6 +55,17 @@ function isUpsertDuplicateInputError(err: any): boolean {
   return msg.includes('cannot affect row a second time')
 }
 
+// Divide array em chunks de `size` para evitar HTTP 414 (URL Too Large).
+// PostgREST converte `.in()` em query params (?field=in.(v1,v2,...)) e arrays
+// grandes estouram o limite de ~8KB da URL no Cloudflare.
+function chunk<T>(array: T[], size: number): T[][] {
+  const chunks: T[][] = []
+  for (let i = 0; i < array.length; i += size) {
+    chunks.push(array.slice(i, i + size))
+  }
+  return chunks
+}
+
 function dedupeBy<T>(items: T[], keyFn: (x: T) => string): T[] {
   const seen = new Set<string>()
   const out: T[] = []
@@ -420,11 +431,17 @@ export async function POST(request: NextRequest) {
     )
 
     if (phoneCandidates.length > 0) {
-      const { data: contactsByPhone, error: lookupError } = await supabase
-        .from('contacts')
-        .select('id, phone')
-        .in('phone', phoneCandidates)
+      // BUG FIX: phoneCandidates pode ter centenas de phones. .in() gera query params na URL
+      // e arrays grandes estouram o limite de ~8KB do Cloudflare (HTTP 414).
+      // Solução: chunk em arrays de 100 e queries paralelas com Promise.all.
+      const phoneChunks = chunk(phoneCandidates, 100)
+      const chunkResults = await Promise.all(
+        phoneChunks.map((phones) =>
+          supabase.from('contacts').select('id, phone').in('phone', phones)
+        )
+      )
 
+      const lookupError = chunkResults.find((r) => r.error)?.error ?? null
       if (lookupError) {
         console.error('[Dispatch] Falha ao resolver contactId via phone:', lookupError)
         return NextResponse.json(
@@ -432,6 +449,8 @@ export async function POST(request: NextRequest) {
           { status: 500 }
         )
       }
+
+      const contactsByPhone = chunkResults.flatMap((r) => r.data || [])
 
       const idByPhone = new Map<string, string>()
       for (const row of (contactsByPhone || []) as any[]) {
@@ -509,11 +528,20 @@ export async function POST(request: NextRequest) {
   )
 
   // Run status and suppressions lookups in parallel (they're independent)
-  const [contactStatusResult, suppressionsResult] = await Promise.all([
-    // Fetch contact statuses
-    uniqueContactIds.length > 0
-      ? supabase.from('contacts').select('id, status').in('id', uniqueContactIds)
-      : Promise.resolve({ data: null, error: null }),
+  const [contactStatusRows, suppressionsResult] = await Promise.all([
+    // BUG FIX: uniqueContactIds pode ter centenas de UUIDs. .in() gera query params na URL
+    // e arrays grandes estouram o limite de ~8KB do Cloudflare (HTTP 414).
+    // Solução: chunk em arrays de 150 e queries paralelas com Promise.all, flatten do resultado.
+    (async () => {
+      if (uniqueContactIds.length === 0) return { data: null, error: null }
+      const idChunks = chunk(uniqueContactIds, 150)
+      const results = await Promise.all(
+        idChunks.map((ids) => supabase.from('contacts').select('id, status').in('id', ids))
+      )
+      const firstError = results.find((r) => r.error)?.error ?? null
+      const data = results.flatMap((r) => r.data || [])
+      return { data, error: firstError }
+    })(),
     // Fetch suppressions
     getActiveSuppressionsByPhone(normalizedPhonesForSuppression).catch((e) => {
       console.warn('[Dispatch] Falha ao carregar phone_suppressions (best-effort):', e)
@@ -523,10 +551,10 @@ export async function POST(request: NextRequest) {
 
   // Process contact statuses
   const statusByContactId = new Map<string, string>()
-  if (contactStatusResult.error) {
-    console.warn('[Dispatch] Falha ao carregar status dos contatos (best-effort):', contactStatusResult.error)
+  if (contactStatusRows.error) {
+    console.warn('[Dispatch] Falha ao carregar status dos contatos (best-effort):', contactStatusRows.error)
   } else {
-    for (const row of (contactStatusResult.data || []) as any[]) {
+    for (const row of (contactStatusRows.data || []) as any[]) {
       if (!row?.id) continue
       statusByContactId.set(String(row.id), String(row.status || ''))
     }
@@ -632,13 +660,24 @@ export async function POST(request: NextRequest) {
     const lockedContactIds = new Set<string>()
     try {
       if (candidateContactIds.length > 0) {
-        const { data: existingRows, error: existingErr } = await supabase
-          .from('campaign_contacts')
-          .select('contact_id,status,message_id')
-          .eq('campaign_id', campaignId)
-          .in('contact_id', candidateContactIds)
+        // BUG FIX: candidateContactIds vem do payload de dispatch e pode ter centenas de UUIDs.
+        // .in() gera query params na URL e arrays grandes estouram o limite de ~8KB do Cloudflare (HTTP 414).
+        // Solução: chunk em arrays de 150 e queries paralelas com Promise.all, flatten do resultado.
+        const contactIdChunks = chunk(candidateContactIds, 150)
+        const chunkResults = await Promise.all(
+          contactIdChunks.map((ids) =>
+            supabase
+              .from('campaign_contacts')
+              .select('contact_id,status,message_id')
+              .eq('campaign_id', campaignId)
+              .in('contact_id', ids)
+          )
+        )
 
+        const existingErr = chunkResults.find((r) => r.error)?.error ?? null
         if (existingErr) throw existingErr
+
+        const existingRows = chunkResults.flatMap((r) => r.data || [])
 
         for (const r of (existingRows || []) as any[]) {
           const cid = String(r?.contact_id || '').trim()

@@ -9,6 +9,24 @@ import { Contact, ContactStatus } from '@/types'
 import { normalizePhoneNumber, getCountryCallingCodeFromPhone } from '@/lib/phone-formatter'
 import { getBrazilUfFromPhone, isBrazilPhone } from '@/lib/br-geo'
 
+/**
+ * Sanitiza uma tag que pode estar como JSON-encoded string (ex: '["tag"]' → 'tag').
+ * Retorna array de tags limpas.
+ */
+function sanitizeTagValue(raw: unknown): string[] {
+  const s = String(raw ?? '').trim()
+  if (!s) return []
+  if (s.startsWith('[') && s.endsWith(']')) {
+    try {
+      const parsed = JSON.parse(s)
+      if (Array.isArray(parsed)) {
+        return parsed.flat(Infinity).map((t: unknown) => String(t ?? '').trim()).filter(Boolean)
+      }
+    } catch { /* not JSON */ }
+  }
+  return [s]
+}
+
 // =============================================================================
 // TYPES
 // =============================================================================
@@ -123,10 +141,11 @@ export function findTopTag(contacts: Contact[]): string | null {
   const counts = new Map<string, number>()
 
   for (const contact of contacts) {
-    for (const tag of contact.tags || []) {
-      const key = String(tag || '').trim()
-      if (!key) continue
-      counts.set(key, (counts.get(key) || 0) + 1)
+    for (const rawTag of contact.tags || []) {
+      for (const key of sanitizeTagValue(rawTag)) {
+        if (!key) continue
+        counts.set(key, (counts.get(key) || 0) + 1)
+      }
     }
   }
 
@@ -205,9 +224,10 @@ export function calculateAudienceStats(
       optInEligible += 1
     }
 
-    // Tag analysis
+    // Tag analysis (sanitiza tags que podem estar como JSON-encoded strings)
     const tags = (contact.tags || [])
-      .map((t) => String(t || '').trim().toLowerCase())
+      .flatMap((t) => sanitizeTagValue(t))
+      .map((t) => t.toLowerCase())
       .filter(Boolean)
 
     if (tags.length === 0) {
@@ -218,16 +238,18 @@ export function calculateAudienceStats(
       topTagEligible += 1
     }
 
-    // Count tags (preserving original case for display)
+    // Count tags (preserving original case for display, sanitizando JSON-encoded)
     for (const rawTag of contact.tags || []) {
-      const label = String(rawTag || '').trim()
-      if (!label) continue
-      const key = label.toLowerCase()
-      const curr = tagCounts.get(key)
-      if (!curr) {
-        tagCounts.set(key, { label, count: 1 })
-      } else {
-        tagCounts.set(key, { label: curr.label, count: curr.count + 1 })
+      const sanitized = sanitizeTagValue(rawTag)
+      for (const label of sanitized) {
+        if (!label) continue
+        const key = label.toLowerCase()
+        const curr = tagCounts.get(key)
+        if (!curr) {
+          tagCounts.set(key, { label, count: 1 })
+        } else {
+          tagCounts.set(key, { label: curr.label, count: curr.count + 1 })
+        }
       }
     }
 

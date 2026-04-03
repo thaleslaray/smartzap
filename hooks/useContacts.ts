@@ -288,6 +288,39 @@ export const useContactsController = (initialData?: ContactsInitialData) => {
     },
   });
 
+  const bulkUpdateTagsMutation = useMutation({
+    mutationFn: ({
+      ids,
+      tagsToAdd,
+      tagsToRemove,
+    }: {
+      ids: string[]
+      tagsToAdd: string[]
+      tagsToRemove: string[]
+    }) => contactService.bulkUpdateTags(ids, tagsToAdd, tagsToRemove),
+    onSuccess: () => {
+      invalidateContacts(queryClient)
+      clearSelection()
+      toast.success('Tags atualizadas com sucesso')
+    },
+    onError: (err: Error) => {
+      toast.error(err.message)
+    },
+  })
+
+  const bulkUpdateStatusMutation = useMutation({
+    mutationFn: ({ ids, status }: { ids: string[]; status: ContactStatus }) =>
+      contactService.bulkUpdateStatus(ids, status),
+    onSuccess: () => {
+      invalidateContacts(queryClient)
+      clearSelection()
+      toast.success('Status atualizado com sucesso')
+    },
+    onError: (err: Error) => {
+      toast.error(err.message)
+    },
+  })
+
   const importMutation = useMutation({
     mutationFn: contactService.import,
     onSuccess: (result) => {
@@ -506,6 +539,18 @@ export const useContactsController = (initialData?: ContactsInitialData) => {
     onImportFile: importFromFileMutation.mutateAsync,
     isImporting: importMutation.isPending || importFromFileMutation.isPending,
     isDeleting: deleteMutation.isPending || deleteManyMutation.isPending,
+    onBulkUpdateTags: (tagsToAdd: string[], tagsToRemove: string[], onDone?: () => void) =>
+      bulkUpdateTagsMutation.mutate(
+        { ids: Array.from(selectedIds), tagsToAdd, tagsToRemove },
+        { onSuccess: onDone }
+      ),
+    isBulkUpdatingTags: bulkUpdateTagsMutation.isPending,
+    onBulkUpdateStatus: (status: ContactStatus) =>
+      bulkUpdateStatusMutation.mutate({
+        ids: Array.from(selectedIds),
+        status,
+      }),
+    isBulkUpdatingStatus: bulkUpdateStatusMutation.isPending,
     onUnsuppress: handleUnsuppress,
 
     // Import report

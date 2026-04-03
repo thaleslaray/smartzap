@@ -320,6 +320,39 @@ export const contactService = {
     return deleted;
   },
 
+  bulkUpdateTags: async (
+    ids: string[],
+    tagsToAdd: string[],
+    tagsToRemove: string[]
+  ): Promise<number> => {
+    const response = await fetch('/api/contacts/bulk-tags', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids, tagsToAdd, tagsToRemove }),
+    });
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error((errorData as { error?: string }).error || 'Erro ao atualizar tags');
+    }
+    const { updated } = await response.json();
+    return updated;
+  },
+
+
+  bulkUpdateStatus: async (ids: string[], status: ContactStatus): Promise<number> => {
+    const response = await fetch('/api/contacts/bulk-status', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids, status }),
+    });
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error((errorData as { error?: string }).error || 'Erro ao atualizar status');
+    }
+    const { updated } = await response.json();
+    return updated;
+  },
+
   /**
    * Remove a supressão global de um telefone.
    * Útil para números de teste ou clientes que pediram para voltar a receber.

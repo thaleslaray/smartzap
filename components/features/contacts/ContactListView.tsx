@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import dynamic from 'next/dynamic';
-import { Trash2, UploadCloud, Download, FileText, Plus } from 'lucide-react';
+import { Trash2, UploadCloud, Download, FileText, Plus, Tag, CircleUser } from 'lucide-react';
 import { Contact, ContactStatus, CustomFieldDefinition } from '../../../types';
 import { CustomFieldsSheet } from './CustomFieldsSheet';
 import { Page, PageActions, PageDescription, PageHeader, PageTitle } from '@/components/ui/page';
@@ -21,6 +21,8 @@ import {
   ContactEditModal,
   ContactDeleteModal,
 } from './list';
+import { ContactBulkTagsModal } from './list/ContactBulkTagsModal';
+import { ContactBulkStatusModal } from './list/ContactBulkStatusModal';
 
 // Lazy-load ContactImportModal (raramente usado, pesado)
 const ContactImportModal = dynamic(
@@ -92,6 +94,10 @@ export interface ContactListViewProps {
   isImporting: boolean;
   isDeleting: boolean;
   onUnsuppress?: (phone: string) => void;
+  onBulkUpdateTags: (tagsToAdd: string[], tagsToRemove: string[], onDone?: () => void) => void;
+  isBulkUpdatingTags?: boolean;
+  onBulkUpdateStatus: (status: ContactStatus) => void;
+  isBulkUpdatingStatus?: boolean;
 }
 
 export const ContactListView: React.FC<ContactListViewProps> = ({
@@ -137,11 +143,17 @@ export const ContactListView: React.FC<ContactListViewProps> = ({
   isDeleting,
   customFields,
   onRefreshCustomFields,
-  onUnsuppress
+  onUnsuppress,
+  onBulkUpdateTags,
+  isBulkUpdatingTags,
+  onBulkUpdateStatus,
+  isBulkUpdatingStatus,
 }) => {
   // Local state
   const [showFilters, setShowFilters] = useState(false);
   const [localCustomFields, setLocalCustomFields] = useState<CustomFieldDefinition[]>([]);
+  const [isBulkTagsModalOpen, setIsBulkTagsModalOpen] = useState(false);
+  const [isBulkStatusModalOpen, setIsBulkStatusModalOpen] = useState(false);
 
   // Initialize local custom fields from props
   useEffect(() => {
@@ -274,7 +286,35 @@ export const ContactListView: React.FC<ContactListViewProps> = ({
             </Button>
           </div>
 
-          {/* Ação destrutiva separada visualmente */}
+          {/* Ações em lote separadas visualmente */}
+          {isSomeSelected && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsBulkTagsModalOpen(true)}
+              disabled={isBulkUpdatingTags}
+              className="gap-2"
+            >
+              <Tag size={14} />
+              Editar tags
+              <span className="text-xs opacity-60">({selectedIds.size})</span>
+            </Button>
+          )}
+
+          {isSomeSelected && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsBulkStatusModalOpen(true)}
+              disabled={isBulkUpdatingStatus}
+              className="gap-2"
+            >
+              <CircleUser size={14} />
+              Editar status
+              <span className="text-xs opacity-60">({selectedIds.size})</span>
+            </Button>
+          )}
+
           {isSomeSelected && (
             <Button
               variant="destructive"
@@ -394,6 +434,28 @@ export const ContactListView: React.FC<ContactListViewProps> = ({
         isDeleting={isDeleting}
         onConfirm={onConfirmDelete}
         onCancel={onCancelDelete}
+      />
+
+      <ContactBulkTagsModal
+        open={isBulkTagsModalOpen}
+        onOpenChange={setIsBulkTagsModalOpen}
+        selectedCount={selectedIds.size}
+        availableTags={tags}
+        onApply={(tagsToAdd, tagsToRemove) => {
+          onBulkUpdateTags(tagsToAdd, tagsToRemove, () => setIsBulkTagsModalOpen(false))
+        }}
+        isLoading={isBulkUpdatingTags}
+      />
+
+      <ContactBulkStatusModal
+        open={isBulkStatusModalOpen}
+        onOpenChange={setIsBulkStatusModalOpen}
+        selectedCount={selectedIds.size}
+        onApply={(status) => {
+          onBulkUpdateStatus(status)
+          setIsBulkStatusModalOpen(false)
+        }}
+        isLoading={isBulkUpdatingStatus}
       />
 
       <ContactImportModal
