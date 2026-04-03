@@ -320,6 +320,28 @@ describe('getTemplateVariableInfo', () => {
     expect(result.totalCount).toBe(0)
   })
 
+  it('fallback: parseia variáveis do corpo via template.content quando components está vazio', () => {
+    const template: Template = {
+      ...makeTemplate([]),
+      content: 'Olá {{1}}, seu pedido {{2}} foi confirmado',
+    }
+    const result = getTemplateVariableInfo(template)
+    expect(result.body).toHaveLength(2)
+    expect(result.body[0]).toMatchObject({ key: '1', placeholder: '{{1}}' })
+    expect(result.body[1]).toMatchObject({ key: '2', placeholder: '{{2}}' })
+    expect(result.totalCount).toBe(2)
+  })
+
+  it('fallback: não ativa quando components já tem variáveis de corpo', () => {
+    const template = makeTemplate([
+      { type: 'BODY', text: 'Corpo com {{nome}}' },
+    ])
+    const result = getTemplateVariableInfo(template)
+    expect(result.body).toHaveLength(1)
+    expect(result.body[0].key).toBe('nome')
+    expect(result.totalCount).toBe(1)
+  })
+
   it('calcula totalCount corretamente somando todas as seções', () => {
     const template = makeTemplate([
       { type: 'HEADER', format: 'TEXT', text: '{{1}} info' },

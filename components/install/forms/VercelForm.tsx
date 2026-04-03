@@ -5,7 +5,7 @@ import { ChevronDown } from 'lucide-react';
 import { TokenInput } from '../TokenInput';
 import { ValidatingOverlay } from '../ValidatingOverlay';
 import { SuccessCheckmark } from '../SuccessCheckmark';
-import { VALIDATION } from '@/lib/installer/types';
+import { VALIDATION, normalizeToken } from '@/lib/installer/types';
 import type { FormProps } from './types';
 
 /**
@@ -20,7 +20,7 @@ export function VercelForm({ data, onComplete, onBack, showBack }: FormProps) {
   const [projectName, setProjectName] = useState<string | null>(null);
 
   const handleValidate = async () => {
-    if (token.trim().length < VALIDATION.VERCEL_TOKEN_MIN_LENGTH) {
+    if (normalizeToken(token).length < VALIDATION.VERCEL_TOKEN_MIN_LENGTH) {
       setError('Credenciais insuficientes');
       return;
     }
@@ -37,7 +37,7 @@ export function VercelForm({ data, onComplete, onBack, showBack }: FormProps) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          token: token.trim(),
+          token: normalizeToken(token),
           domain: window.location.hostname,
         }),
       });
@@ -70,7 +70,7 @@ export function VercelForm({ data, onComplete, onBack, showBack }: FormProps) {
   };
 
   const handleSuccessComplete = () => {
-    onComplete({ vercelToken: token.trim() });
+    onComplete({ vercelToken: normalizeToken(token) });
   };
 
   if (success) {
@@ -112,7 +112,7 @@ export function VercelForm({ data, onComplete, onBack, showBack }: FormProps) {
           setToken(val);
           setError(null);
         }}
-        placeholder="cole as credenciais aqui..."
+        placeholder="paste_xxxxxxxxxxxxxxxxxxxxxxxxxxxx"
         validating={validating}
         error={error || undefined}
         minLength={VALIDATION.VERCEL_TOKEN_MIN_LENGTH}
@@ -122,6 +122,13 @@ export function VercelForm({ data, onComplete, onBack, showBack }: FormProps) {
         accentColor="magenta"
         autoFocus
       />
+
+      {/* Dica de formato */}
+      {!validating && !error && !token && (
+        <p className="text-center text-xs font-mono text-[var(--br-dust-gray)]/60">
+          Token começa com letras e números (24+ caracteres)
+        </p>
+      )}
 
       {/* Collapsible help - esconde durante validação */}
       {!validating && (

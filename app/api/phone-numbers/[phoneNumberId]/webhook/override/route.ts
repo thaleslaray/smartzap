@@ -212,6 +212,25 @@ export async function POST(request: NextRequest, context: RouteContext) {
     if (!response.ok) {
       const errorData = await safeJson<any>(response)
       console.error('Meta API error setting webhook override:', errorData);
+
+      // Erro #100 = app não inscrito no WABA antes de tentar override no número
+      const metaErrorCode = errorData?.error?.code;
+      if (metaErrorCode === 100) {
+        return NextResponse.json(
+          {
+            code: 'APP_NOT_SUBSCRIBED',
+            error: 'O App Meta não está inscrito para receber mensagens desta WABA.',
+            hint: 'Acesse o Meta App Dashboard (developers.facebook.com/apps), selecione seu App → WhatsApp → Configuração → e inscreva o App nos webhooks desta WABA antes de configurar overrides por número.',
+            details: errorData?.error,
+            preflight: {
+              attempted: preflight && !force,
+              forced: force,
+            },
+          },
+          { status: 400 }
+        );
+      }
+
       return NextResponse.json(
         {
           error: errorData?.error?.message || 'Erro ao configurar webhook override',
