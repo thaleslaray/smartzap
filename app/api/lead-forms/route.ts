@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { leadFormDb } from '@/lib/supabase-db'
-import { CreateLeadFormSchema, validateBody, formatZodErrors } from '@/lib/api-validation'
+import { CreateLeadFormSchema, validateBodyOrError } from '@/lib/api-validation'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -33,13 +33,8 @@ export async function POST(request: Request) {
   try {
     const body = await request.json()
 
-    const validation = validateBody(CreateLeadFormSchema, body)
-    if (!validation.success) {
-      return NextResponse.json(
-        { error: 'Dados inválidos', details: formatZodErrors(validation.error) },
-        { status: 400 }
-      )
-    }
+    const validation = validateBodyOrError(CreateLeadFormSchema, body)
+    if (!validation.success) return validation.response
 
     const created = await leadFormDb.create(validation.data)
     return NextResponse.json(created, { status: 201 })

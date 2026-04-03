@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { validateBody, formatZodErrors } from '@/lib/api-validation'
+import { validateBodyOrError } from '@/lib/api-validation'
 import { generateJSON } from '@/lib/ai'
 import { isAiRouteEnabled } from '@/lib/ai/ai-center-config'
 
@@ -120,14 +120,8 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const validation = validateBody(ExtractContentSchema, body)
-
-    if (!validation.success) {
-      return NextResponse.json(
-        { error: 'Dados inválidos', details: formatZodErrors(validation.error) },
-        { status: 400 }
-      )
-    }
+    const validation = validateBodyOrError(ExtractContentSchema, body)
+    if (!validation.success) return validation.response
 
     const { content } = validation.data
 

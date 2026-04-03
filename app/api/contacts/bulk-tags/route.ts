@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { contactDb } from '@/lib/supabase-db'
 import { requireSessionOrApiKey } from '@/lib/request-auth'
-import { formatZodErrors, validateBody } from '@/lib/api-validation'
+import { validateBodyOrError } from '@/lib/api-validation'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -24,13 +24,8 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json().catch(() => ({}))
 
-    const validation = validateBody(BulkUpdateTagsSchema, body)
-    if (!validation.success) {
-      return NextResponse.json(
-        { error: 'Dados inválidos', details: formatZodErrors(validation.error) },
-        { status: 400 }
-      )
-    }
+    const validation = validateBodyOrError(BulkUpdateTagsSchema, body)
+    if (!validation.success) return validation.response
 
     const { ids, tagsToAdd, tagsToRemove } = validation.data
 

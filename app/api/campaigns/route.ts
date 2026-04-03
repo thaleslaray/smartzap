@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { campaignDb, campaignContactDb } from '@/lib/supabase-db'
-import { CreateCampaignSchema, validateBody, formatZodErrors } from '@/lib/api-validation'
+import { CreateCampaignSchema, validateBodyOrError } from '@/lib/api-validation'
 import { Client as QStashClient } from '@upstash/qstash'
 import { fetchWithTimeout, safeText } from '@/lib/server-http'
 
@@ -106,13 +106,8 @@ export async function POST(request: Request) {
     const body = await request.json()
 
     // Validate input
-    const validation = validateBody(CreateCampaignSchema, body)
-    if (!validation.success) {
-      return NextResponse.json(
-        { error: 'Dados inválidos', details: formatZodErrors(validation.error) },
-        { status: 400 }
-      )
-    }
+    const validation = validateBodyOrError(CreateCampaignSchema, body)
+    if (!validation.success) return validation.response
 
     const data = validation.data
 

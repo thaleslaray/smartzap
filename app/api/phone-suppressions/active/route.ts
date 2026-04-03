@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
-import { validateBody, formatZodErrors } from '@/lib/api-validation'
+import { validateBodyOrError } from '@/lib/api-validation'
 import { getActiveSuppressionsByPhone } from '@/lib/phone-suppressions'
 import { normalizePhoneNumber } from '@/lib/phone-formatter'
 
@@ -24,13 +24,8 @@ export async function POST(request: Request) {
   try {
     const body = await request.json()
 
-    const validation = validateBody(GetActivePhoneSuppressionsSchema, body)
-    if (!validation.success) {
-      return NextResponse.json(
-        { error: 'Dados inválidos', details: formatZodErrors(validation.error) },
-        { status: 400 }
-      )
-    }
+    const validation = validateBodyOrError(GetActivePhoneSuppressionsSchema, body)
+    if (!validation.success) return validation.response
 
     const normalizedPhones = Array.from(
       new Set(

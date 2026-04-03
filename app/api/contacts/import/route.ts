@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { contactDb } from '@/lib/supabase-db'
 import { requireSessionOrApiKey } from '@/lib/request-auth'
-import { ImportContactsSchema, validateBody, formatZodErrors } from '@/lib/api-validation'
+import { ImportContactsSchema, validateBodyOrError } from '@/lib/api-validation'
 import { ContactStatus } from '@/types'
 
 /**
@@ -24,13 +24,8 @@ export async function POST(request: Request) {
     }
 
     // Validate input
-    const validation = validateBody(ImportContactsSchema, body)
-    if (!validation.success) {
-      return NextResponse.json(
-        { error: 'Dados inválidos', details: formatZodErrors(validation.error) },
-        { status: 400 }
-      )
-    }
+    const validation = validateBodyOrError(ImportContactsSchema, body)
+    if (!validation.success) return validation.response
 
     const { contacts } = validation.data
 

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { contactDb } from '@/lib/supabase-db'
 import { requireSessionOrApiKey } from '@/lib/request-auth'
-import { BulkSetContactCustomFieldSchema, formatZodErrors, validateBody } from '@/lib/api-validation'
+import { BulkSetContactCustomFieldSchema, validateBodyOrError } from '@/lib/api-validation'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -19,13 +19,8 @@ export async function POST(request: Request) {
 
     const body = await request.json().catch(() => ({}))
 
-    const validation = validateBody(BulkSetContactCustomFieldSchema, body)
-    if (!validation.success) {
-      return NextResponse.json(
-        { error: 'Dados inválidos', details: formatZodErrors(validation.error) },
-        { status: 400 }
-      )
-    }
+    const validation = validateBodyOrError(BulkSetContactCustomFieldSchema, body)
+    if (!validation.success) return validation.response
 
     const { contactIds, key, value } = validation.data
 

@@ -4,8 +4,7 @@ import { requireSessionOrApiKey } from '@/lib/request-auth'
 import {
   CreateContactSchema,
   DeleteContactsSchema,
-  validateBody,
-  formatZodErrors
+  validateBodyOrError,
 } from '@/lib/api-validation'
 
 export const dynamic = 'force-dynamic'
@@ -90,14 +89,8 @@ export async function POST(request: Request) {
 
     const body = await request.json()
 
-    // Validate input
-    const validation = validateBody(CreateContactSchema, body)
-    if (!validation.success) {
-      return NextResponse.json(
-        { error: 'Dados inválidos', details: formatZodErrors(validation.error) },
-        { status: 400 }
-      )
-    }
+    const validation = validateBodyOrError(CreateContactSchema, body)
+    if (!validation.success) return validation.response
 
     // Normalize null to undefined for optional fields
     const contactData = {
@@ -127,14 +120,8 @@ export async function DELETE(request: Request) {
 
     const body = await request.json()
 
-    // Validate input
-    const validation = validateBody(DeleteContactsSchema, body)
-    if (!validation.success) {
-      return NextResponse.json(
-        { error: 'Dados inválidos', details: formatZodErrors(validation.error) },
-        { status: 400 }
-      )
-    }
+    const validation = validateBodyOrError(DeleteContactsSchema, body)
+    if (!validation.success) return validation.response
 
     const deleted = await contactDb.deleteMany(validation.data.ids)
     return NextResponse.json({ deleted })

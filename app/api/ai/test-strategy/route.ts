@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { validateBody, formatZodErrors } from '@/lib/api-validation'
+import { validateBodyOrError } from '@/lib/api-validation'
 import { generateJSON } from '@/lib/ai'
 import { getAiPromptsConfig } from '@/lib/ai/ai-center-config'
 import { MARKETING_PROMPT } from '@/lib/ai/prompts/marketing'
@@ -71,13 +71,8 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     console.log('[TEST_STRATEGY] Received:', JSON.stringify(body, null, 2))
 
-    const validation = validateBody(TestStrategySchema, body)
-    if (!validation.success) {
-      return NextResponse.json(
-        { error: 'Dados inválidos', details: formatZodErrors(validation.error) },
-        { status: 400 }
-      )
-    }
+    const validation = validateBodyOrError(TestStrategySchema, body)
+    if (!validation.success) return validation.response
 
     const { prompt: userPrompt, strategy, language } = validation.data
     const config = STRATEGY_CONFIG[strategy]

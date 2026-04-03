@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { validateBody, formatZodErrors } from '@/lib/api-validation'
+import { validateBodyOrError } from '@/lib/api-validation'
 import { generateText, generateJSON } from '@/lib/ai'
 import { judgeTemplates } from '@/lib/ai/services/ai-judge'
 import { buildUtilityGenerationPrompt } from '@/lib/ai/prompts/utility-generator'
@@ -362,13 +362,8 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     console.log('[API ROUTE] Received Body:', JSON.stringify(body, null, 2));
 
-    const validation = validateBody(GenerateUtilityTemplatesSchema, body)
-    if (!validation.success) {
-      return NextResponse.json(
-        { error: 'Dados inválidos', details: formatZodErrors(validation.error) },
-        { status: 400 }
-      )
-    }
+    const validation = validateBodyOrError(GenerateUtilityTemplatesSchema, body)
+    if (!validation.success) return validation.response
 
     const { prompt: userPrompt, quantity, language, strategy } = validation.data
 

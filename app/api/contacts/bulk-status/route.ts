@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { contactDb } from '@/lib/supabase-db'
 import { ContactStatus } from '@/types'
 import { requireSessionOrApiKey } from '@/lib/request-auth'
-import { formatZodErrors, validateBody } from '@/lib/api-validation'
+import { validateBodyOrError } from '@/lib/api-validation'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -27,13 +27,8 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json().catch(() => ({}))
 
-    const validation = validateBody(BulkUpdateStatusSchema, body)
-    if (!validation.success) {
-      return NextResponse.json(
-        { error: 'Dados inválidos', details: formatZodErrors(validation.error) },
-        { status: 400 }
-      )
-    }
+    const validation = validateBodyOrError(BulkUpdateStatusSchema, body)
+    if (!validation.success) return validation.response
 
     const { ids, status } = validation.data
 

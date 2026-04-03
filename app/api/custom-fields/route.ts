@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { customFieldDefDb } from '@/lib/supabase-db'
-import { validateBody, formatZodErrors } from '@/lib/api-validation'
+import { validateBodyOrError } from '@/lib/api-validation'
 import { z } from 'zod'
 
 // Cache GET requests for 10 minutes - custom fields rarely change
@@ -38,13 +38,8 @@ export async function POST(request: Request) {
         const body = await request.json()
 
         // Validate
-        const validation = validateBody(CreateCustomFieldSchema, body)
-        if (!validation.success) {
-            return NextResponse.json(
-                { error: 'Dados inválidos', details: formatZodErrors(validation.error) },
-                { status: 400 }
-            )
-        }
+        const validation = validateBodyOrError(CreateCustomFieldSchema, body)
+        if (!validation.success) return validation.response
 
         const field = await customFieldDefDb.create(validation.data)
 
