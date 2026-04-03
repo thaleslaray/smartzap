@@ -31,6 +31,7 @@ import {
 } from '../types'
 import { isSuppressionActive } from '@/lib/phone-suppressions'
 import { canonicalTemplateCategory } from '@/lib/template-category'
+import { normalizePhoneNumber } from '@/lib/phone-formatter'
 
 // Gera um ID compatível com ambientes que usam UUID (preferencial) e também funciona como TEXT.
 // - Em Supabase, muitos schemas antigos usam `uuid` como PK.
@@ -1034,20 +1035,9 @@ export const contactDb = {
 
         const now = new Date().toISOString()
 
-        // Normaliza telefone para E.164 usando a mesma lógica do normalizePhoneNumber
-        // Garante que números como "5524999402004" virem "+5524999402004"
-        // Sempre usa só os dígitos para evitar mismatch de deduplicação
-        // ex: "+55 (11) 9999-0001" e "+5511999990001" seriam tratados como contatos diferentes
-        const normalizePhone = (p: string): string => {
-            if (!p || typeof p !== 'string') return ''
-            const digits = p.replace(/\D/g, '')
-            if (!digits) return ''
-            return `+${digits}`
-        }
-
         // Normaliza e filtra contatos com telefone inválido (vazio ou só "+")
         const normalizedContacts = contacts
-            .map(c => ({ ...c, phone: normalizePhone(c.phone) }))
+            .map(c => ({ ...c, phone: normalizePhoneNumber(c.phone) }))
             .filter(c => c.phone.length > 2) // mínimo "+X" válido tem pelo menos 3 chars
 
         if (normalizedContacts.length === 0) return { inserted: 0, updated: 0 }
