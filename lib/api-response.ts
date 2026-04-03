@@ -19,7 +19,3 @@ export function apiError(
   return NextResponse.json({ error: message, ...extra }, { status })
 }
 
-/** Resposta 400 com campo `details` para erros de validação Zod. */
-export function apiValidationError(details: unknown): NextResponse {
-  return NextResponse.json({ error: 'Dados inválidos', details }, { status: 400 })
-}

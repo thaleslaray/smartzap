@@ -25,7 +25,7 @@ async function extractError(response: Response): Promise<string> {
 export const api = {
     /** GET — lança Error se a resposta não for ok. */
     async get<T>(path: string, init?: RequestInit): Promise<T> {
-        const response = init !== undefined ? await fetch(path, init) : await fetch(path);
+        const response = await fetch(path, init);
         if (!response.ok) throw new Error(await extractError(response));
         return response.json();
     },
@@ -36,7 +36,7 @@ export const api = {
      */
     async safeGet<T>(path: string, fallback: T, init?: RequestInit): Promise<T> {
         try {
-            const response = init !== undefined ? await fetch(path, init) : await fetch(path);
+            const response = await fetch(path, init);
             if (!response.ok) return fallback;
             return response.json();
         } catch {

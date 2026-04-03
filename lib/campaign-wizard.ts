@@ -6,6 +6,7 @@
  */
 
 import type { Template } from '@/types'
+import { api } from '@/lib/api'
 
 // ── Types ──────────────────────────────────────────────────────────────
 
@@ -101,11 +102,5 @@ export const extractFlowFromTemplate = (template: Template | null): { flowId: st
   return { flowId: null, flowName: null }
 }
 
-export const fetchJson = async <T,>(url: string): Promise<T> => {
-  const res = await fetch(url, { cache: 'no-store' })
-  if (!res.ok) {
-    const message = await res.text()
-    throw new Error(message || 'Erro ao buscar dados')
-  }
-  return res.json()
-}
+export const fetchJson = <T,>(url: string): Promise<T> =>
+  api.get<T>(url, { cache: 'no-store' })
