@@ -160,6 +160,9 @@ export function useRealtimeQuery<TData = unknown, TError = Error>({
                 channelRef.current = null
             }
         }
+    // events.join(',') é intencional: serializa o array para comparação estável,
+    // evitando re-subscriptions quando o array é recriado com os mesmos valores.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [table, filter, events.join(','), handleRealtimeEvent])
 
     return query

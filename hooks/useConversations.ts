@@ -143,8 +143,8 @@ export function useConversationMutations() {
           }
         }
       )
-      // Update single conversation cache
-      queryClient.setQueryData([CONVERSATIONS_KEY, updated.id], updated)
+      // Atualiza cache individual usando a chave correta (singular: 'inbox-conversation')
+      queryClient.setQueryData(getConversationQueryKey(updated.id), updated)
     },
   })
 
@@ -153,6 +153,11 @@ export function useConversationMutations() {
     mutationFn: inboxService.markAsRead,
     onMutate: async (conversationId) => {
       await queryClient.cancelQueries({ queryKey: CONVERSATIONS_LIST_KEY })
+
+      // Salva snapshot para rollback
+      const previousData = queryClient.getQueriesData<ConversationListResult>(
+        { queryKey: CONVERSATIONS_LIST_KEY }
+      )
 
       // Optimistic update
       queryClient.setQueriesData<ConversationListResult>(
@@ -167,6 +172,19 @@ export function useConversationMutations() {
           }
         }
       )
+
+      return { previousData }
+    },
+    onError: (_err, _conversationId, context) => {
+      // Rollback do update otimista em caso de erro
+      if (context?.previousData) {
+        context.previousData.forEach(([queryKey, data]) => {
+          queryClient.setQueryData(queryKey, data)
+        })
+      }
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: CONVERSATIONS_LIST_KEY })
     },
   })
 
