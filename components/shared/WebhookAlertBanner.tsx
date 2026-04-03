@@ -4,28 +4,17 @@ import React, { useState, useEffect } from 'react';
 import { AlertTriangle, X, Settings } from 'lucide-react';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
+import type { WebhookHierarchy, WebhookSubscription } from '@/components/features/settings/webhook/types';
 
 const DISMISS_KEY = 'webhook_alert_dismissed';
 const DISMISS_DURATION = 24 * 60 * 60 * 1000; // 24 horas
-
-interface WebhookHierarchy {
-  phoneNumberOverride: string | null;
-  wabaOverride: string | null;
-  appWebhook: string | null;
-}
-
-interface WebhookSubscription {
-  ok: boolean;
-  hierarchy?: WebhookHierarchy | null;
-  smartzapWebhookUrl?: string;
-}
 
 /**
  * Compara se duas URLs são equivalentes
  */
 function urlsMatch(url1: string | null | undefined, url2: string | null | undefined): boolean {
   if (!url1 || !url2) return false;
-  const normalize = (u: string) => u.replace(/\/$/, '').toLowerCase();
+  const normalize = (u: string) => u.replace(/^https?:\/\//, '').replace(/\/$/, '').toLowerCase();
   return normalize(url1) === normalize(url2);
 }
 
