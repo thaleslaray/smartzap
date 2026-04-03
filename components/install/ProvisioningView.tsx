@@ -109,6 +109,7 @@ export function ProvisioningView({ data, progress, title, subtitle, onProgress, 
       onProgress({
         type: 'error',
         error: err instanceof Error ? err.message : 'Erro desconhecido',
+        errorType: 'network',
         returnToStep: 1,
       });
     }

@@ -1579,7 +1579,7 @@ const workflowHandler = serve<CampaignWorkflowInput>(
                 campaignId,
                 template: activeTemplateForSync as any,
               }).catch((err) => {
-                console.warn(`[workflow] inbox sync failed for ${maskPhone(contact.phone)}:`, err)
+                console.warn(`[workflow] inbox sync failed for ${contact.phone}:`, err)
               })
 
               // Métrica operacional: quando foi o último "sent" (envio/dispatch), sem depender de delivery.
@@ -2598,6 +2598,7 @@ const workflowHandler = serve<CampaignWorkflowInput>(
 
       return explicitAppUrl || productionUrl || deploymentUrl
     })(),
+    retries: 3,
   }
 )
 

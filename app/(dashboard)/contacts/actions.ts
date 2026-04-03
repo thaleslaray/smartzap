@@ -20,21 +20,6 @@ export interface ContactsInitialData {
   customFields: CustomFieldDefinition[]
 }
 
-// Helper para sanitizar tags potencialmente aninhadas/corrompidas
-function sanitizeTag(tag: unknown): string[] {
-    const s = String(tag ?? '').trim()
-    if (!s) return []
-    if (s.startsWith('[') && s.endsWith(']')) {
-        try {
-            const parsed = JSON.parse(s)
-            if (Array.isArray(parsed)) {
-                return parsed.flat(Infinity).map((t: unknown) => String(t ?? '').trim()).filter(Boolean)
-            }
-        } catch { /* not JSON */ }
-    }
-    return [s]
-}
-
 // Helper para normalizar telefone (remove + se tiver)
 const normalizePhone = (phone: string) => {
   const p = String(phone || '').trim()
@@ -52,7 +37,7 @@ export const getContactsInitialData = cache(async (): Promise<ContactsInitialDat
   }
 
   // Buscar tudo em paralelo
-  const [contactsResult, tagsResult, customFieldsResult, suppressionsResult, statsResult] = await Promise.all([
+  const [contactsResult, tagsResult, customFieldsResult, suppressionsResult, allContactsResult] = await Promise.all([
     // Primeira página de contatos
     supabase
       .from('contacts')
@@ -60,8 +45,11 @@ export const getContactsInitialData = cache(async (): Promise<ContactsInitialDat
       .order('created_at', { ascending: false })
       .range(0, PAGE_SIZE - 1),
 
-    // Tags únicas via RPC (sem limite PostgREST — retorna todos os contatos)
-    supabase.rpc('get_contact_tags'),
+    // Tags únicas
+    supabase
+      .from('contacts')
+      .select('tags')
+      .not('tags', 'is', null),
 
     // Campos customizados
     supabase
@@ -70,15 +58,17 @@ export const getContactsInitialData = cache(async (): Promise<ContactsInitialDat
       .eq('entity_type', 'contact')
       .order('name'),
 
-    // Supressões ativas (para calcular effectiveStatus nos contatos da página)
+    // Supressões ativas (para calcular effectiveStatus)
     supabase
       .from('phone_suppressions')
       .select('phone,reason,source,expires_at')
       .eq('is_active', true)
       .or('expires_at.is.null,expires_at.gt.' + new Date().toISOString()),
 
-    // Stats agregados via RPC (total, optIn, optOut — sem limite PostgREST)
-    supabase.rpc('get_contact_stats'),
+    // Todos os telefones/status para calcular stats
+    supabase
+      .from('contacts')
+      .select('phone,status')
   ])
 
   // Criar mapa de supressões indexado por telefone normalizado
@@ -113,7 +103,7 @@ export const getContactsInitialData = cache(async (): Promise<ContactsInitialDat
       email: c.email,
       status: effectiveStatus, // Status visual calculado
       originalStatus: dbStatus, // Status real do banco (para referência)
-      tags: Array.isArray(c.tags) ? (c.tags as unknown[]).flat(Infinity).flatMap(t => sanitizeTag(t)).filter(Boolean) : [],
+      tags: c.tags || [],
       lastActive: c.last_active || c.updated_at || c.created_at,
       createdAt: c.created_at,
       updatedAt: c.updated_at,
@@ -124,32 +114,46 @@ export const getContactsInitialData = cache(async (): Promise<ContactsInitialDat
     }
   })
 
-  // Tags via RPC — retorna string[] com todas as tags únicas do banco (sem limite PostgREST)
-  const rawTagsData = tagsResult.data
-  const rawTags: unknown[] = Array.isArray(rawTagsData)
-    ? rawTagsData
-    : (typeof rawTagsData === 'string'
-        ? (() => { try { const p = JSON.parse(rawTagsData); return Array.isArray(p) ? p : [] } catch { return [] } })()
-        : [])
-  const allTags: string[] = rawTags
-    .flat(Infinity)
-    .flatMap(t => sanitizeTag(t))
-    .filter(Boolean)
+  // Extrair tags únicas
+  const allTags = new Set<string>()
+  ;(tagsResult.data || []).forEach(row => {
+    if (Array.isArray(row.tags)) {
+      row.tags.forEach((tag: string) => allTags.add(tag))
+    }
+  })
 
-  // Stats via RPC — counts calculados no SQL (total real, sem limite PostgREST)
-  const rpcStats = statsResult.data as { total: number; optIn: number; optOut: number } | null
-  const suppressed = suppressionMap.size
+  // Calcular stats com effectiveStatus (supressão tem prioridade)
+  const computedStats = {
+    total: allContactsResult.data?.length || 0,
+    active: 0,
+    optOut: 0,
+    suppressed: 0
+  }
+
+  for (const row of allContactsResult.data || []) {
+    const phone = String(row.phone || '').trim()
+    const normalizedPhone = normalizePhone(phone)
+    const isSuppressed = suppressionMap.has(normalizedPhone)
+
+    if (isSuppressed) {
+      computedStats.suppressed++
+    } else if (row.status === 'OPT_IN' || row.status === 'Opt-in') {
+      computedStats.active++
+    } else if (row.status === 'OPT_OUT' || row.status === 'Opt-out') {
+      computedStats.optOut++
+    }
+  }
 
   return {
     contacts,
     total: contactsResult.count || 0,
     stats: {
-      total: rpcStats?.total || contactsResult.count || 0,
-      active: rpcStats?.optIn || 0,
-      optOut: rpcStats?.optOut || 0,
-      suppressed,
+      total: computedStats.total,
+      active: computedStats.active,
+      optOut: computedStats.optOut,
+      suppressed: computedStats.suppressed
     },
-    tags: allTags.toSorted(),
+    tags: Array.from(allTags).toSorted(),
     customFields: (customFieldsResult.data || []) as CustomFieldDefinition[]
   }
 })

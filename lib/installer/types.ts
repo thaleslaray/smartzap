@@ -104,7 +104,7 @@ export function isValidEmail(email: string): boolean {
  * o token é copiado de um arquivo .env ou documentação — ex: QSTASH_TOKEN="eyJ..."
  */
 export function normalizeToken(value: string): string {
-  return value.trim().replace(/^["'`]|["'`]$/g, '');
+  return value.trim().replace(/^["'`]+|["'`]+$/g, '');
 }
 
 /** Funções que validam se um step está completo */

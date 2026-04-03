@@ -129,12 +129,35 @@ export const ContactCard = React.memo(
         {/* Suppression details (optional) */}
         {showSuppressionDetails && contact.suppressionReason && (
           <div className="mt-3 p-2 rounded-lg bg-red-500/10 border border-red-500/20">
-            <p className="text-xs text-red-300">{contact.suppressionReason}</p>
-            {contact.suppressionSource && (
-              <p className="text-[10px] text-red-400/60 mt-0.5">
-                Fonte: {contact.suppressionSource}
-              </p>
-            )}
+            <div className="flex items-start justify-between gap-2">
+              <div className="flex-1 min-w-0">
+                <p className="text-xs text-red-300">{contact.suppressionReason}</p>
+                {contact.suppressionSource && (
+                  <p className="text-[10px] text-red-400/60 mt-0.5">
+                    Fonte: {contact.suppressionSource}
+                  </p>
+                )}
+              </div>
+              {onUnsuppress && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      className="shrink-0 text-red-300 hover:text-red-200 hover:bg-red-500/20"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        onUnsuppress(contact.phone)
+                      }}
+                      aria-label="Remover supressão"
+                    >
+                      <ShieldOff size={14} />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent><p>Remover supressão</p></TooltipContent>
+                </Tooltip>
+              )}
+            </div>
           </div>
         )}
 

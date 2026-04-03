@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { ChevronDown } from 'lucide-react';
 import { TokenInput } from '../TokenInput';
 import { ValidatingOverlay } from '../ValidatingOverlay';
@@ -21,12 +21,12 @@ export function RedisForm({ data, onComplete, onBack, showBack }: FormProps) {
   const autoValidateTimer = useRef<NodeJS.Timeout | null>(null);
   const validateInFlightRef = useRef(false);
 
-  const isValidUrl = restUrl.trim().startsWith('https://') && restUrl.trim().includes('.upstash.io');
+  const isValidUrl = /^https:\/\/[a-z0-9][a-z0-9-]*\.upstash\.io\/?$/i.test(restUrl.trim());
   const normalizedToken = normalizeToken(restToken);
-  const isValidToken = normalizedToken.length >= VALIDATION.REDIS_TOKEN_MIN_LENGTH && /^[A-Za-z0-9_=-]+$/.test(normalizedToken);
+  const isValidToken = normalizedToken.length >= VALIDATION.REDIS_TOKEN_MIN_LENGTH && /^[A-Za-z0-9_=+/-]+$/.test(normalizedToken);
   const canValidate = isValidUrl && isValidToken;
 
-  const handleValidate = async () => {
+  const handleValidate = useCallback(async () => {
     if (validateInFlightRef.current) {
       return;
     }
@@ -78,7 +78,7 @@ export function RedisForm({ data, onComplete, onBack, showBack }: FormProps) {
       setValidating(false);
       validateInFlightRef.current = false;
     }
-  };
+  }, [canValidate, restUrl, normalizedToken]);
 
   const handleSuccessComplete = () => {
     onComplete({
@@ -104,7 +104,7 @@ export function RedisForm({ data, onComplete, onBack, showBack }: FormProps) {
         clearTimeout(autoValidateTimer.current);
       }
     };
-  }, [restUrl, restToken, canValidate, validating, success, error]);
+  }, [restUrl, restToken, canValidate, validating, success, error, handleValidate]);
 
   if (success) {
     return (

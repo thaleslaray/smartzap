@@ -801,7 +801,7 @@ export async function POST(req: Request) {
       if (currentStep.id === 'validate_redis') {
         const msg = message.toLowerCase();
         derivedErrorType = isTimeout ? 'network'
-          : msg.includes('token') || msg.includes('inválido') || msg.includes('permiss') ? 'redis_token'
+          : msg.includes('credenciais') || msg.includes('token') || msg.includes('permiss') ? 'redis_token'
           : 'redis_url';
       } else {
         derivedErrorType = isTimeout ? 'network' : (errorTypeMap[currentStep.id] ?? 'unknown');
