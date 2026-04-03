@@ -1,13 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
-import { createGoogleGenerativeAI } from '@ai-sdk/google'
-import { createOpenAI } from '@ai-sdk/openai'
-import { createAnthropic } from '@ai-sdk/anthropic'
-import { generateText } from 'ai'
 import { clearSettingsCache } from '@/lib/ai'
 import { isVercelApiConfigured, setProviderApiKey, triggerRedeploy } from '@/lib/vercel-api'
 import { DEFAULT_AI_FALLBACK, DEFAULT_AI_GATEWAY, DEFAULT_AI_PROMPTS, DEFAULT_AI_ROUTES } from '@/lib/ai/ai-center-defaults'
-import { DEFAULT_MODEL_ID } from '@/lib/ai/model'
 import { DEFAULT_OCR_MODEL } from '@/lib/ai/ocr/providers/gemini'
 import {
   clearAiCenterCache,
@@ -41,106 +36,51 @@ interface ValidationResult {
 }
 
 /**
- * Validate API key by making a minimal test call
- * Returns valid: true with warning if key works but has quota/billing issues
- * Returns valid: false with error if key is completely invalid
+ * Valida uma API key chamando o endpoint /models do provider via REST.
+ * Sem SDK, sem chamadas LLM — apenas verifica autenticação.
  */
 async function validateApiKey(provider: string, apiKey: string): Promise<ValidationResult> {
+    type ProviderConfig = { url: string; headers: Record<string, string> }
+
+    const configs: Record<string, ProviderConfig> = {
+        google: {
+            url: `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`,
+            headers: {},
+        },
+        openai: {
+            url: 'https://api.openai.com/v1/models',
+            headers: { Authorization: `Bearer ${apiKey}` },
+        },
+        anthropic: {
+            url: 'https://api.anthropic.com/v1/models',
+            headers: { 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
+        },
+        mistral: {
+            url: 'https://api.mistral.ai/v1/models',
+            headers: { Authorization: `Bearer ${apiKey}` },
+        },
+    }
+
+    const config = configs[provider]
+    if (!config) return { valid: false, error: 'Provider desconhecido' }
+
     try {
-        let model;
+        const res = await fetch(config.url, { headers: config.headers })
 
-        switch (provider) {
-            case 'google': {
-                const google = createGoogleGenerativeAI({ apiKey })
-                model = google(DEFAULT_MODEL_ID)
-                break
-            }
-            case 'openai': {
-                const openai = createOpenAI({ apiKey })
-                model = openai('gpt-4.1-mini')
-                break
-            }
-            case 'anthropic': {
-                const anthropic = createAnthropic({ apiKey })
-                model = anthropic('claude-3-5-haiku-20241022')
-                break
-            }
-            default:
-                return { valid: false, error: 'Provider desconhecido' }
-        }
+        if (res.ok) return { valid: true }
 
-        // Make a minimal test call
-        await generateText({
-            model,
-            prompt: 'Hi',
-            maxOutputTokens: 16,
-        })
+        if (res.status === 401) return { valid: false, error: 'Chave de API inválida. Verifique se a chave está correta e ativa.' }
+        if (res.status === 403) return { valid: false, error: 'Acesso negado. A chave pode estar desativada ou a API não está habilitada no projeto.' }
+        if (res.status === 429) return { valid: false, error: 'Quota excedida ou billing não configurado. Verifique seu plano e configure o billing, depois gere uma nova chave.' }
 
-        return { valid: true }
+        return { valid: false, error: `Erro ao validar chave: HTTP ${res.status}` }
     } catch (error) {
         const message = error instanceof Error ? error.message : 'Erro desconhecido'
-
         console.error('[AI Key Validation] Error:', message)
 
-        // Parse common error messages for user-friendly responses
-        if (message.toLowerCase().includes('api key') || message.toLowerCase().includes('apikey') || message.toLowerCase().includes('invalid')) {
-            return { valid: false, error: 'Chave de API inválida. Verifique se a chave está correta e ativa.' }
-        }
-
-        // Quota/Rate limit - key is valid but has billing/usage issues
-        if (message.includes('429') || message.includes('quota') || message.includes('rate limit') || message.includes('RESOURCE_EXHAUSTED')) {
-            return {
-                valid: false,
-                error: 'Quota excedida ou billing não configurado. Verifique seu plano em https://aistudio.google.com e configure o billing. Após configurar, gere uma nova chave.'
-            }
-        }
-
-        if (message.includes('401') || message.includes('Unauthorized')) {
-            return { valid: false, error: 'Chave de API não autorizada. Verifique se a chave está correta.' }
-        }
-        if (message.includes('403') || message.includes('Forbidden')) {
-            return { valid: false, error: 'Acesso negado. A chave pode estar desativada ou a API não está habilitada no projeto.' }
-        }
-        if (message.includes('404') || message.includes('not found')) {
-            return { valid: false, error: 'Modelo não encontrado. Verifique se sua conta tem acesso ao modelo selecionado.' }
-        }
-        if (message.includes('ENOTFOUND') || message.includes('network') || message.includes('ECONNREFUSED')) {
+        if (message.includes('ENOTFOUND') || message.includes('ECONNREFUSED')) {
             return { valid: false, error: 'Erro de conexão. Verifique sua internet e tente novamente.' }
         }
-
-        // Return the original message for unknown errors
-        return { valid: false, error: `Erro ao validar chave: ${message}` }
-    }
-}
-
-/**
- * Validate Mistral API key by calling the models endpoint
- */
-async function validateMistralApiKey(apiKey: string): Promise<ValidationResult> {
-    try {
-        const response = await fetch('https://api.mistral.ai/v1/models', {
-            headers: { 'Authorization': `Bearer ${apiKey}` }
-        })
-
-        if (!response.ok) {
-            if (response.status === 401) {
-                return { valid: false, error: 'Chave de API inválida ou não autorizada.' }
-            }
-            if (response.status === 403) {
-                return { valid: false, error: 'Acesso negado. Verifique se a chave está ativa.' }
-            }
-            return { valid: false, error: `Erro na validação: HTTP ${response.status}` }
-        }
-
-        return { valid: true }
-    } catch (error) {
-        const message = error instanceof Error ? error.message : 'Erro desconhecido'
-        console.error('[Mistral Key Validation] Error:', message)
-
-        if (message.includes('ENOTFOUND') || message.includes('network') || message.includes('ECONNREFUSED')) {
-            return { valid: false, error: 'Erro de conexão. Verifique sua internet e tente novamente.' }
-        }
-
         return { valid: false, error: `Erro ao validar chave: ${message}` }
     }
 }
@@ -465,7 +405,7 @@ export async function POST(request: NextRequest) {
 
         // OCR: Validate and save Mistral API key
         if (mistral_api_key) {
-            const validationResult = await validateMistralApiKey(mistral_api_key)
+            const validationResult = await validateApiKey('mistral', mistral_api_key)
             if (!validationResult.valid) {
                 return NextResponse.json(
                     { error: `Chave Mistral inválida: ${validationResult.error}` },
@@ -509,13 +449,11 @@ export async function POST(request: NextRequest) {
 
         return NextResponse.json({
             success: true,
-            message: 'AI configuration saved successfully',
+            message: pendingActivation
+                ? 'Configuração salva. Ativando no AI Gateway (~2 min)...'
+                : 'AI configuration saved successfully',
             saved: updates.map(u => u.key),
-            ...(pendingActivation && {
-                pendingActivation: true,
-                deploymentId,
-                message: 'Configuração salva. Ativando no AI Gateway (~2 min)...',
-            }),
+            ...(pendingActivation && { pendingActivation: true, deploymentId }),
         })
     } catch (error) {
         console.error('Error saving AI settings:', error)

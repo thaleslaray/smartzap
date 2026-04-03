@@ -75,6 +75,40 @@ function assertValidGatewayModelId(modelId: string): void {
     }
 }
 
+type GatewayCallBase = {
+    model: ReturnType<typeof gateway>;
+    system: string | undefined;
+    temperature: number;
+    maxOutputTokens?: number;
+    providerOptions?: Record<string, Record<string, unknown>>;
+}
+
+// Union discriminada compatível com os overloads do AI SDK
+type GatewayCallArgs =
+    | (GatewayCallBase & { messages: ModelMessage[] })
+    | (GatewayCallBase & { prompt: string })
+
+function buildGatewayArgs(
+    options: GenerateTextOptions,
+    modelId: string,
+    providerOptions: Record<string, Record<string, unknown>> | undefined,
+): GatewayCallArgs {
+    // Sem anotação em `base`: o spread condicional de providerOptions produz um
+    // tipo inferido que o TypeScript não consegue estreitar para GatewayCallBase
+    // quando a anotação explícita está presente.
+    const base = {
+        model: gateway(modelId),
+        system: options.system,
+        temperature: options.temperature ?? 0.7,
+        ...(options.maxOutputTokens ? { maxOutputTokens: options.maxOutputTokens } : {}),
+        ...(providerOptions ? { providerOptions } : {}),
+    };
+    // ChatMessage é estruturalmente compatível com ModelMessage (role + content string)
+    return (options.messages
+        ? { ...base, messages: options.messages as unknown as ModelMessage[] }
+        : { ...base, prompt: options.prompt || '' }) as GatewayCallArgs;
+}
+
 /**
  * Converte APICallError do Gateway em erros legíveis com contexto de ação.
  * Trata 402 (budget), 429 (rate limit) e 503 (serviço indisponível).
@@ -109,37 +143,16 @@ function handleGatewayError(error: unknown, modelId: string): never {
 export async function generateText(options: GenerateTextOptions): Promise<GenerateTextResult> {
     const gatewayConfig = await getAiGatewayConfig();
     const modelId = options.model || gatewayConfig.primaryModel;
-
     assertValidGatewayModelId(modelId);
     console.log(`[AI Service] Generating with ${modelId} (via Gateway)`);
 
-    // Monta providerOptions com fallbacks se configurado
     const providerOptions = gatewayConfig.fallbackModels?.length
         ? { gateway: { models: gatewayConfig.fallbackModels } }
         : undefined;
 
-    // ChatMessage é estruturalmente compatível com ModelMessage (role + content string)
-    const messages = options.messages as unknown as ModelMessage[];
-
     try {
-        const result = options.messages
-            ? await vercelGenerateText({
-                model: gateway(modelId),
-                messages,
-                system: options.system,
-                temperature: options.temperature ?? 0.7,
-                ...(options.maxOutputTokens ? { maxOutputTokens: options.maxOutputTokens } : {}),
-                ...(providerOptions ? { providerOptions } : {}),
-            })
-            : await vercelGenerateText({
-                model: gateway(modelId),
-                prompt: options.prompt || '',
-                system: options.system,
-                temperature: options.temperature ?? 0.7,
-                ...(options.maxOutputTokens ? { maxOutputTokens: options.maxOutputTokens } : {}),
-                ...(providerOptions ? { providerOptions } : {}),
-            });
-
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const result = await vercelGenerateText(buildGatewayArgs(options, modelId, providerOptions) as any);
         return { text: result.text, model: modelId };
     } catch (error) {
         handleGatewayError(error, modelId);
@@ -158,7 +171,6 @@ export async function generateText(options: GenerateTextOptions): Promise<Genera
 export async function streamText(options: StreamTextOptions): Promise<GenerateTextResult> {
     const gatewayConfig = await getAiGatewayConfig();
     const modelId = options.model || gatewayConfig.primaryModel;
-
     assertValidGatewayModelId(modelId);
     console.log(`[AI Service] Streaming with ${modelId} (via Gateway)`);
 
@@ -166,25 +178,8 @@ export async function streamText(options: StreamTextOptions): Promise<GenerateTe
         ? { gateway: { models: gatewayConfig.fallbackModels } }
         : undefined;
 
-    const messages = options.messages as unknown as ModelMessage[];
-
-    const result = options.messages
-        ? vercelStreamText({
-            model: gateway(modelId),
-            messages,
-            system: options.system,
-            temperature: options.temperature ?? 0.7,
-            ...(options.maxOutputTokens ? { maxOutputTokens: options.maxOutputTokens } : {}),
-            ...(providerOptions ? { providerOptions } : {}),
-        })
-        : vercelStreamText({
-            model: gateway(modelId),
-            prompt: options.prompt || '',
-            system: options.system,
-            temperature: options.temperature ?? 0.7,
-            ...(options.maxOutputTokens ? { maxOutputTokens: options.maxOutputTokens } : {}),
-            ...(providerOptions ? { providerOptions } : {}),
-        });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const result = vercelStreamText(buildGatewayArgs(options, modelId, providerOptions) as any);
 
     let fullText = '';
     try {
