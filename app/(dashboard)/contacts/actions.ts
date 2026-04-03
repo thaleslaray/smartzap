@@ -37,7 +37,7 @@ export const getContactsInitialData = cache(async (): Promise<ContactsInitialDat
   }
 
   // Buscar tudo em paralelo
-  const [contactsResult, tagsResult, customFieldsResult, suppressionsResult] = await Promise.all([
+  const [contactsResult, tagsResult, customFieldsResult, suppressionsResult, allContactsResult] = await Promise.all([
     // Primeira página de contatos
     supabase
       .from('contacts')
@@ -63,7 +63,12 @@ export const getContactsInitialData = cache(async (): Promise<ContactsInitialDat
       .from('phone_suppressions')
       .select('phone,reason,source,expires_at')
       .eq('is_active', true)
-      .or('expires_at.is.null,expires_at.gt.' + new Date().toISOString())
+      .or('expires_at.is.null,expires_at.gt.' + new Date().toISOString()),
+
+    // Todos os telefones/status para calcular stats
+    supabase
+      .from('contacts')
+      .select('phone,status')
   ])
 
   // Criar mapa de supressões indexado por telefone normalizado
@@ -118,19 +123,14 @@ export const getContactsInitialData = cache(async (): Promise<ContactsInitialDat
   })
 
   // Calcular stats com effectiveStatus (supressão tem prioridade)
-  // Precisamos buscar os telefones de TODOS os contatos para calcular corretamente
-  const { data: allContactsPhones } = await supabase
-    .from('contacts')
-    .select('phone,status')
-
   const computedStats = {
-    total: allContactsPhones?.length || 0,
+    total: allContactsResult.data?.length || 0,
     active: 0,
     optOut: 0,
     suppressed: 0
   }
 
-  for (const row of allContactsPhones || []) {
+  for (const row of allContactsResult.data || []) {
     const phone = String(row.phone || '').trim()
     const normalizedPhone = normalizePhone(phone)
     const isSuppressed = suppressionMap.has(normalizedPhone)
