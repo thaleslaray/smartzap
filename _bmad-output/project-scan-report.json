@@ -1,0 +1,61 @@
+{
+  "workflow_version": "1.2.0",
+  "timestamps": {
+    "started": "2026-02-08T12:00:00Z",
+    "last_updated": "2026-02-08T14:30:00Z",
+    "completed": "2026-02-08T14:30:00Z"
+  },
+  "mode": "initial_scan",
+  "scan_level": "exhaustive",
+  "project_root": "/Users/thaleslaray/code/projetos/smartzap",
+  "output_folder": "/Users/thaleslaray/code/projetos/smartzap/docs",
+  "project_types": [
+    {
+      "part_id": "smartzap",
+      "project_type_id": "web",
+      "display_name": "Web Application (Next.js 16)"
+    }
+  ],
+  "completed_steps": [
+    "step_1_detect_project_type",
+    "step_2_choose_scan_level",
+    "step_3_scan_source_tree",
+    "step_4_scan_api_routes",
+    "step_5_scan_database_schema",
+    "step_6_scan_ui_components",
+    "step_7_scan_hooks_services_lib",
+    "step_8_generate_project_overview",
+    "step_9_generate_architecture",
+    "step_10_generate_data_models",
+    "step_11_generate_component_inventory",
+    "step_12_generate_development_guide",
+    "step_13_generate_source_tree",
+    "step_14_generate_index",
+    "step_15_validation",
+    "step_16_finalization"
+  ],
+  "current_step": "completed",
+  "findings": {
+    "source_files": 870,
+    "api_routes": 200,
+    "database_tables": 38,
+    "sql_functions": 16,
+    "components": 460,
+    "hooks": 57,
+    "services": 19,
+    "pages": 27,
+    "migrations": 31,
+    "scripts": 50
+  },
+  "outputs_generated": [
+    "project-scan-report.json",
+    "docs/project-overview.md",
+    "docs/architecture.md",
+    "docs/data-models.md",
+    "docs/component-inventory.md",
+    "docs/development-guide.md",
+    "docs/source-tree.md",
+    "docs/index.md"
+  ],
+  "resume_instructions": "Workflow completed. All documents generated successfully."
+}

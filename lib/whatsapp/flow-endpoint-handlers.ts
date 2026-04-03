@@ -160,7 +160,7 @@ async function loadFlowJsonFromToken(flowToken?: string | null): Promise<Record<
     .eq('meta_flow_id', metaFlowId)
     .limit(1)
   if (error) return null
-  const row = Array.isArray(data) ? data[0] : (data as any)
+  const row = Array.isArray(data) ? data[0] : data
   if (!row?.flow_json) return null
   if (typeof row.flow_json === 'object') return row.flow_json as Record<string, unknown>
   if (typeof row.flow_json === 'string') {
@@ -220,7 +220,9 @@ type BookingRuntimeKeys = {
   fallbackServices?: ServiceType[]
 }
 
-function collectComponents(nodes: any[] | undefined | null, out: any[]) {
+type FlowNode = Record<string, unknown> & { children?: FlowNode[] }
+
+function collectComponents(nodes: FlowNode[] | undefined | null, out: FlowNode[]) {
   if (!Array.isArray(nodes)) return
   for (const node of nodes) {
     if (!node || typeof node !== 'object') continue
@@ -231,17 +233,22 @@ function collectComponents(nodes: any[] | undefined | null, out: any[]) {
   }
 }
 
-function extractScreenComponents(screen: any): any[] {
-  const out: any[] = []
-  const layoutChildren = Array.isArray(screen?.layout?.children) ? screen.layout.children : []
-  collectComponents(layoutChildren, out)
+function extractScreenComponents(screen: FlowNode): FlowNode[] {
+  const out: FlowNode[] = []
+  const layout = screen?.layout as FlowNode | undefined
+  const layoutChildren = Array.isArray(layout?.children) ? layout.children : []
+  collectComponents(layoutChildren as FlowNode[], out)
   return out
 }
 
-function extractPayloadKeyMap(screen: any): Record<string, string> {
+function extractPayloadKeyMap(screen: FlowNode): Record<string, string> {
   const comps = extractScreenComponents(screen)
-  const footer = comps.find((c) => c?.type === 'Footer' && c?.['on-click-action']?.name === 'data_exchange')
-  const payload = footer?.['on-click-action']?.payload
+  const footer = comps.find((c) => {
+    const action = c?.['on-click-action'] as Record<string, unknown> | undefined
+    return c?.type === 'Footer' && action?.name === 'data_exchange'
+  })
+  const action = footer?.['on-click-action'] as Record<string, unknown> | undefined
+  const payload = action?.payload
   if (!payload || typeof payload !== 'object') return {}
   const out: Record<string, string> = {}
   for (const [key, value] of Object.entries(payload)) {
@@ -251,23 +258,23 @@ function extractPayloadKeyMap(screen: any): Record<string, string> {
   return out
 }
 
-function extractExample(screen: any, key?: string): string | undefined {
+function extractExample(screen: FlowNode, key?: string): string | undefined {
   if (!key) return undefined
-  const data = screen?.data
+  const data = screen?.data as Record<string, unknown> | undefined
   if (!data || typeof data !== 'object') return undefined
-  const entry = (data as any)[key]
+  const entry = data[key]
   if (!entry || typeof entry !== 'object') return undefined
-  const example = (entry as any).__example__
+  const example = (entry as Record<string, unknown>).__example__
   return typeof example === 'string' ? example : undefined
 }
 
-function extractServiceOptionsFromFlowJson(flowJson: any): ServiceType[] | null {
+function extractServiceOptionsFromFlowJson(flowJson: Record<string, unknown>): ServiceType[] | null {
   const screens = Array.isArray(flowJson?.screens) ? flowJson.screens : []
   for (const screen of screens) {
-    const data = screen?.data
+    const data = (screen as FlowNode)?.data as Record<string, unknown> | undefined
     if (!data || typeof data !== 'object') continue
-    const servicesEntry = (data as any).services
-    const example = servicesEntry && typeof servicesEntry === 'object' ? (servicesEntry as any).__example__ : null
+    const servicesEntry = data.services
+    const example = servicesEntry && typeof servicesEntry === 'object' ? (servicesEntry as Record<string, unknown>).__example__ : null
     if (Array.isArray(example)) {
       const normalized = example
         .map((opt) => ({
@@ -282,31 +289,34 @@ function extractServiceOptionsFromFlowJson(flowJson: any): ServiceType[] | null 
   return null
 }
 
-function extractBookingRuntime(flowJson: any): BookingRuntimeKeys | null {
+function extractBookingRuntime(flowJson: Record<string, unknown>): BookingRuntimeKeys | null {
   const screens = Array.isArray(flowJson?.screens) ? flowJson.screens : []
   if (!screens.length) return null
 
-  const screenInfo: { screen: any; comps: any[]; payloadMap: Record<string, string> }[] = screens.map((screen: any) => {
-    const comps = extractScreenComponents(screen)
-    const payloadMap = extractPayloadKeyMap(screen)
-    return { screen, comps, payloadMap }
+  type ScreenInfo = { screen: FlowNode; comps: FlowNode[]; payloadMap: Record<string, string> }
+
+  const screenInfo: ScreenInfo[] = screens.map((screen: unknown) => {
+    const s = screen as FlowNode
+    const comps = extractScreenComponents(s)
+    const payloadMap = extractPayloadKeyMap(s)
+    return { screen: s, comps, payloadMap }
   })
 
-  const isChoice = (c: any) => c?.type === 'Dropdown' || c?.type === 'RadioButtonsGroup' || c?.type === 'CheckboxGroup'
-  const isDate = (c: any) => c?.type === 'CalendarPicker' || c?.type === 'DatePicker'
+  const isChoice = (c: FlowNode) => c?.type === 'Dropdown' || c?.type === 'RadioButtonsGroup' || c?.type === 'CheckboxGroup'
+  const isDate = (c: FlowNode) => c?.type === 'CalendarPicker' || c?.type === 'DatePicker'
 
   const startInfo =
-    screenInfo.find(({ comps }: { comps: any[] }) =>
+    screenInfo.find(({ comps }) =>
       comps.some((c) => isChoice(c) && getDataBindingKey(c?.['data-source']) === 'services')
     ) ||
-    screenInfo.find(({ comps }: { comps: any[] }) => comps.some((c) => isChoice(c) && !!getDataBindingKey(c?.['data-source'])))
+    screenInfo.find(({ comps }) => comps.some((c) => isChoice(c) && !!getDataBindingKey(c?.['data-source'])))
 
   const timeInfo =
-    screenInfo.find(({ comps }: { comps: any[] }) => comps.some((c) => isChoice(c) && getDataBindingKey(c?.['data-source']) === 'slots')) ||
-    screenInfo.find(({ comps }: { comps: any[] }) => comps.some((c) => isChoice(c) && !!getDataBindingKey(c?.['data-source'])))
+    screenInfo.find(({ comps }) => comps.some((c) => isChoice(c) && getDataBindingKey(c?.['data-source']) === 'slots')) ||
+    screenInfo.find(({ comps }) => comps.some((c) => isChoice(c) && !!getDataBindingKey(c?.['data-source'])))
 
   const customerInfo =
-    screenInfo.find(({ comps }: { comps: any[] }) => comps.some((c) => c?.type === 'TextInput' || c?.type === 'TextArea')) || null
+    screenInfo.find(({ comps }) => comps.some((c) => c?.type === 'TextInput' || c?.type === 'TextArea')) || null
 
   if (!startInfo || !timeInfo || !customerInfo) return null
 
@@ -335,10 +345,10 @@ function extractBookingRuntime(flowJson: any): BookingRuntimeKeys | null {
     services: getDataBindingKey(startChoice?.['data-source']) || 'services',
     dates: getDataBindingKey(startInfo.comps.find((c) => getDataBindingKey(c?.['data-source']) === 'dates')?.['data-source']) || 'dates',
     slots: getDataBindingKey(timeChoice?.['data-source']) || 'slots',
-    minDate: getDataBindingKey((dateInput as any)?.['min-date']) || 'min_date',
-    maxDate: getDataBindingKey((dateInput as any)?.['max-date']) || 'max_date',
-    includeDays: getDataBindingKey((dateInput as any)?.['include-days']) || 'include_days',
-    unavailableDates: getDataBindingKey((dateInput as any)?.['unavailable-dates']) || 'unavailable_dates',
+    minDate: getDataBindingKey(dateInput?.['min-date']) || 'min_date',
+    maxDate: getDataBindingKey(dateInput?.['max-date']) || 'max_date',
+    includeDays: getDataBindingKey(dateInput?.['include-days']) || 'include_days',
+    unavailableDates: getDataBindingKey(dateInput?.['unavailable-dates']) || 'unavailable_dates',
     startTitle: getDataBindingKey(startScreen?.title) || 'title',
     startSubtitle: getDataBindingKey(startInfo.comps.find((c) => c?.type === 'TextSubheading')?.text) || 'subtitle',
     timeTitle: getDataBindingKey(timeScreen?.title) || 'title',
@@ -729,7 +739,7 @@ async function handleInit(runtime?: BookingRuntimeKeys | null): Promise<Record<s
 
     // #region agent log
     const servicesKey = keys?.services || 'services'
-    console.log('[handleInit] dataPayload services:', { key: servicesKey, count: (dataPayload[servicesKey] as any[])?.length })
+    console.log('[handleInit] dataPayload services:', { key: servicesKey, count: (dataPayload[servicesKey] as unknown[] | undefined)?.length })
     // #endregion
     // #region agent log
     // #endregion

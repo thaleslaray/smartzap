@@ -46,7 +46,7 @@ export type FlowFormSpecV1 = {
   fields: FlowFormFieldV1[]
 }
 
-type FlowComponent = Record<string, any>
+type FlowComponent = Record<string, unknown>
 
 function safeString(v: unknown, fallback = ''): string {
   return typeof v === 'string' ? v : fallback
@@ -90,9 +90,10 @@ export function normalizeFlowFormSpec(input: unknown, fallbackTitle?: string): F
 
   if (!isPlainObject(input)) return defaults
 
-  const normalizeField = (f: any, idx: number): FlowFormFieldV1 | null => {
+  const normalizeField = (f: unknown, idx: number): FlowFormFieldV1 | null => {
       if (!f || typeof f !== 'object') return null
-      const type = safeString(f.type) as FlowFormFieldType
+      const field = f as Record<string, unknown>
+      const type = safeString(field.type) as FlowFormFieldType
       const allowed: FlowFormFieldType[] = [
         'short_text',
         'long_text',
@@ -107,11 +108,11 @@ export function normalizeFlowFormSpec(input: unknown, fallbackTitle?: string): F
       ]
       const normalizedType: FlowFormFieldType = allowed.includes(type) ? type : 'short_text'
 
-      const label = safeString(f.label, `Pergunta ${idx + 1}`).trim() || `Pergunta ${idx + 1}`
-      const rawName = safeString(f.name, normalizeFlowFieldName(label))
+      const label = safeString(field.label, `Pergunta ${idx + 1}`).trim() || `Pergunta ${idx + 1}`
+      const rawName = safeString(field.name, normalizeFlowFieldName(label))
       const name = normalizeFlowFieldName(rawName) || `campo_${idx + 1}`
-      const id = safeString(f.id, `q_${idx + 1}`) || `q_${idx + 1}`
-      const required = typeof f.required === 'boolean' ? f.required : false
+      const id = safeString(field.id, `q_${idx + 1}`) || `q_${idx + 1}`
+      const required = typeof field.required === 'boolean' ? field.required : false
 
       const out: FlowFormFieldV1 = {
         id,
@@ -121,21 +122,22 @@ export function normalizeFlowFormSpec(input: unknown, fallbackTitle?: string): F
         required,
       }
 
-      const placeholder = safeString(f.placeholder, '').trim()
+      const placeholder = safeString(field.placeholder, '').trim()
       if (placeholder) out.placeholder = placeholder
 
       if (normalizedType === 'optin') {
-        const text = safeString(f.text, label).trim() || label
+        const text = safeString(field.text, label).trim() || label
         out.text = text
       }
 
       if (normalizedType === 'dropdown' || normalizedType === 'single_choice' || normalizedType === 'multi_choice') {
-        const optionsRaw = Array.isArray(f.options) ? f.options : []
+        const optionsRaw = Array.isArray(field.options) ? (field.options as unknown[]) : []
         const options: FlowFormOption[] = optionsRaw
-          .map((o: any, oidx: number): FlowFormOption | null => {
+          .map((o: unknown, oidx: number): FlowFormOption | null => {
             if (!o || typeof o !== 'object') return null
-            const title = safeString(o.title, '').trim() || `Opção ${oidx + 1}`
-            const id = safeString(o.id, normalizeFlowFieldName(title)).trim() || `${oidx + 1}`
+            const opt = o as Record<string, unknown>
+            const title = safeString(opt.title, '').trim() || `Opção ${oidx + 1}`
+            const id = safeString(opt.id, normalizeFlowFieldName(title)).trim() || `${oidx + 1}`
             return { id, title }
           })
           .filter(Boolean) as FlowFormOption[]
@@ -146,15 +148,16 @@ export function normalizeFlowFormSpec(input: unknown, fallbackTitle?: string): F
       return out
   }
 
-  const stepsRaw = Array.isArray((input as any).steps) ? (input as any).steps : []
+  const stepsRaw = Array.isArray(input.steps) ? (input.steps as unknown[]) : []
   const steps: FlowFormStepV1[] = stepsRaw
-    .map((step: any, idx: number): FlowFormStepV1 | null => {
+    .map((step: unknown, idx: number): FlowFormStepV1 | null => {
       if (!step || typeof step !== 'object') return null
-      const fieldsRaw = Array.isArray(step.fields) ? step.fields : []
-      const fields = fieldsRaw.map((f: any, fidx: number) => normalizeField(f, fidx)).filter(Boolean) as FlowFormFieldV1[]
-      const id = safeString(step.id, `STEP_${idx + 1}`) || `STEP_${idx + 1}`
-      const title = safeString(step.title, '').trim()
-      const nextLabel = safeString(step.nextLabel, '').trim()
+      const s = step as Record<string, unknown>
+      const fieldsRaw = Array.isArray(s.fields) ? (s.fields as unknown[]) : []
+      const fields = fieldsRaw.map((f: unknown, fidx: number) => normalizeField(f, fidx)).filter(Boolean) as FlowFormFieldV1[]
+      const id = safeString(s.id, `STEP_${idx + 1}`) || `STEP_${idx + 1}`
+      const title = safeString(s.title, '').trim()
+      const nextLabel = safeString(s.nextLabel, '').trim()
       return {
         id,
         ...(title ? { title } : {}),
@@ -164,9 +167,9 @@ export function normalizeFlowFormSpec(input: unknown, fallbackTitle?: string): F
     })
     .filter(Boolean) as FlowFormStepV1[]
 
-  const topFieldsRaw = Array.isArray((input as any).fields) ? (input as any).fields : []
+  const topFieldsRaw = Array.isArray(input.fields) ? (input.fields as unknown[]) : []
   const topFields: FlowFormFieldV1[] = topFieldsRaw
-    .map((f: any, idx: number) => normalizeField(f, idx))
+    .map((f: unknown, idx: number) => normalizeField(f, idx))
     .filter(Boolean) as FlowFormFieldV1[]
 
   const normalizedSteps =
@@ -181,7 +184,7 @@ export function normalizeFlowFormSpec(input: unknown, fallbackTitle?: string): F
 
   const flattenedFields = normalizedSteps.flatMap((s) => s.fields)
 
-  const first = normalizedSteps[0] as any
+  const first = normalizedSteps[0]
   const hasStepMeta =
     normalizedSteps.length > 1 ||
     !!String(first?.title || '').trim() ||
@@ -194,14 +197,14 @@ export function normalizeFlowFormSpec(input: unknown, fallbackTitle?: string): F
     intro: safeString(input.intro, defaults.intro).trim() || defaults.intro,
     submitLabel: safeString(input.submitLabel, defaults.submitLabel).trim() || defaults.submitLabel,
     sendConfirmation:
-      typeof (input as any).sendConfirmation === 'boolean'
-        ? (input as any).sendConfirmation
+      typeof input.sendConfirmation === 'boolean'
+        ? input.sendConfirmation
         : defaults.sendConfirmation,
     confirmationTitle:
-      safeString((input as any).confirmationTitle, defaults.confirmationTitle).trim() ||
+      safeString(input.confirmationTitle, defaults.confirmationTitle).trim() ||
       defaults.confirmationTitle,
     confirmationFooter:
-      safeString((input as any).confirmationFooter, defaults.confirmationFooter).trim() ||
+      safeString(input.confirmationFooter, defaults.confirmationFooter).trim() ||
       defaults.confirmationFooter,
     steps: hasStepMeta ? normalizedSteps : undefined,
     fields: flattenedFields,
@@ -219,10 +222,13 @@ function getOptions(comp: FlowComponent): FlowFormOption[] {
       ? comp.options
       : []
   return raw
-    .map((o: any, idx: number) => ({
-      id: asText(o?.id || `opcao_${idx + 1}`) || `opcao_${idx + 1}`,
-      title: asText(o?.title || `Opção ${idx + 1}`) || `Opção ${idx + 1}`,
-    }))
+    .map((o: unknown, idx: number) => {
+      const opt = isPlainObject(o) ? o : {} as Record<string, unknown>
+      return {
+        id: asText(opt.id || `opcao_${idx + 1}`) || `opcao_${idx + 1}`,
+        title: asText(opt.title || `Opção ${idx + 1}`) || `Opção ${idx + 1}`,
+      }
+    })
     .filter((o: FlowFormOption) => o.id && o.title)
 }
 
@@ -230,7 +236,8 @@ export function flowJsonToFormSpec(flowJson: unknown, fallbackTitle?: string): F
   const base = normalizeFlowFormSpec({}, fallbackTitle)
   if (!flowJson || typeof flowJson !== 'object') return base
 
-  const screens = Array.isArray((flowJson as any).screens) ? (flowJson as any).screens : []
+  const fj = flowJson as Record<string, unknown>
+  const screens = Array.isArray(fj.screens) ? (fj.screens as Record<string, unknown>[]) : []
   const firstScreen = screens[0]
   const title = asText(firstScreen?.title).trim() || base.title
   const screenId = asText(firstScreen?.id).trim() || base.screenId
@@ -240,7 +247,7 @@ export function flowJsonToFormSpec(flowJson: unknown, fallbackTitle?: string): F
     for (const n of nodes) {
       if (!n || typeof n !== 'object') continue
       out.push(n)
-      const children = Array.isArray((n as any).children) ? ((n as any).children as FlowComponent[]) : null
+      const children = Array.isArray(n.children) ? (n.children as FlowComponent[]) : null
       if (children?.length) out.push(...flatten(children))
     }
     return out
@@ -352,8 +359,8 @@ export function flowJsonToFormSpec(flowJson: unknown, fallbackTitle?: string): F
 
   const steps: FlowFormStepV1[] = []
   for (const [idx, s] of screens.entries()) {
-    const layout = s?.layout
-    const children: FlowComponent[] = Array.isArray(layout?.children) ? layout.children : []
+    const layout = isPlainObject(s?.layout) ? s.layout : {} as Record<string, unknown>
+    const children: FlowComponent[] = Array.isArray(layout.children) ? (layout.children as FlowComponent[]) : []
     const fields = extractFieldsFromChildren(children)
     const footerNode = flatten(children).find((c) => c?.type === 'Footer')
     const ctaLabel = footerNode ? asText(footerNode.label).trim() : ''
@@ -365,15 +372,18 @@ export function flowJsonToFormSpec(flowJson: unknown, fallbackTitle?: string): F
     })
   }
 
-  const firstChildren: FlowComponent[] = Array.isArray(firstScreen?.layout?.children) ? firstScreen.layout.children : []
+  const firstLayout = isPlainObject(firstScreen?.layout) ? (firstScreen.layout as Record<string, unknown>) : {} as Record<string, unknown>
+  const firstChildren: FlowComponent[] = Array.isArray(firstLayout.children) ? (firstLayout.children as FlowComponent[]) : []
   const introNode = flatten(firstChildren).find((c) => c?.type === 'TextBody' || c?.type === 'BasicText' || c?.type === 'RichText')
   const intro = introNode ? asText(introNode.text).trim() : base.intro
 
   const lastScreen = screens[screens.length - 1]
-  const lastChildren: FlowComponent[] = Array.isArray(lastScreen?.layout?.children) ? lastScreen.layout.children : []
+  const lastLayout = isPlainObject(lastScreen?.layout) ? (lastScreen.layout as Record<string, unknown>) : {} as Record<string, unknown>
+  const lastChildren: FlowComponent[] = Array.isArray(lastLayout.children) ? (lastLayout.children as FlowComponent[]) : []
   const lastFooterNode = flatten(lastChildren).find((c) => c?.type === 'Footer')
   const submitLabel = lastFooterNode ? asText(lastFooterNode.label).trim() || base.submitLabel : base.submitLabel
-  const footerPayload = lastFooterNode?.['on-click-action']?.payload || {}
+  const onClickAction = isPlainObject(lastFooterNode?.['on-click-action']) ? (lastFooterNode['on-click-action'] as Record<string, unknown>) : {} as Record<string, unknown>
+  const footerPayload = isPlainObject(onClickAction.payload) ? (onClickAction.payload as Record<string, unknown>) : {} as Record<string, unknown>
   const sendConfirmation =
     typeof footerPayload?.send_confirmation === 'boolean'
       ? footerPayload.send_confirmation !== false
@@ -411,7 +421,7 @@ export function generateFlowJsonFromFormSpec(form: FlowFormSpecV1): Record<strin
   const baseScreenId = normalizeScreenId(form.screenId)
   const screenIdForStep = (idx: number) => (idx === 0 ? baseScreenId : `${baseScreenId}_${idx + 1}`)
 
-  const renderField = (field: FlowFormFieldV1): any => {
+  const renderField = (field: FlowFormFieldV1): FlowComponent => {
     if (field.type === 'optin') {
       return {
         type: 'OptIn',
@@ -500,7 +510,7 @@ export function generateFlowJsonFromFormSpec(form: FlowFormSpecV1): Record<strin
   }
 
   const screens = steps.map((step, idx) => {
-    const children: any[] = []
+    const children: FlowComponent[] = []
     if (idx === 0 && form.intro && form.intro.trim()) {
       children.push({ type: 'TextBody', text: form.intro.trim() })
     }

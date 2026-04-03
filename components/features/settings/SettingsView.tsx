@@ -162,6 +162,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
         {/* 2. Webhook Configuration Section */}
         {settings.isConnected && webhookUrl && (
+          <section id="webhooks">
           <WebhookConfigSection
             webhookUrl={webhookUrl}
             webhookToken={webhookToken}
@@ -180,6 +181,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             onRemoveWebhookOverride={onRemoveWebhookOverride}
             availableDomains={availableDomains}
           />
+          </section>
         )}
 
         {/* 3. Test Contact Section */}

@@ -18,9 +18,24 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Validar token fazendo uma requisição de listagem de schedules
-    // Este endpoint aceita GET e retorna 200 se o token for válido
-    const qstashRes = await fetch('https://qstash.upstash.io/v2/schedules', {
+    // Detecta a região correta lendo o campo `iss` (issuer) do payload JWT.
+    // O Upstash embute no próprio token a URL do servidor correto —
+    // assim a validação funciona para qualquer região (US, EU, etc.) sem hardcode.
+    let qstashBaseUrl = 'https://qstash.upstash.io' // fallback genérico
+    try {
+      const payloadB64 = token.split('.')[1]
+      if (payloadB64) {
+        const payload = JSON.parse(Buffer.from(payloadB64, 'base64url').toString())
+        if (payload.iss && typeof payload.iss === 'string') {
+          qstashBaseUrl = payload.iss.replace(/\/$/, '')
+        }
+      }
+    } catch {
+      // Se não conseguir decodificar o JWT, tenta com o fallback mesmo assim
+    }
+
+    // Valida o token no servidor correto para a região do usuário
+    const qstashRes = await fetch(`${qstashBaseUrl}/v2/schedules`, {
       method: 'GET',
       headers: {
         Authorization: `Bearer ${token}`,
@@ -30,7 +45,7 @@ export async function POST(req: NextRequest) {
     if (!qstashRes.ok) {
       if (qstashRes.status === 401 || qstashRes.status === 403) {
         return NextResponse.json(
-          { error: 'Token QStash inválido ou sem permissões' },
+          { error: 'Token QStash inválido. Verifique se copiou o QSTASH_TOKEN corretamente (sem aspas).' },
           { status: 401 }
         );
       }

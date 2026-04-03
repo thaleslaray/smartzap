@@ -13,7 +13,15 @@ export async function POST(request: Request) {
     const auth = await requireSessionOrApiKey(request as NextRequest)
     if (auth) return auth
 
-    const body = await request.json()
+    let body: unknown
+    try {
+      body = await request.json()
+    } catch {
+      return NextResponse.json(
+        { error: 'Body inválido: esperado JSON com lista de contatos' },
+        { status: 400 }
+      )
+    }
 
     // Validate input
     const validation = validateBody(ImportContactsSchema, body)
@@ -47,8 +55,9 @@ export async function POST(request: Request) {
     })
   } catch (error) {
     console.error('Failed to import contacts:', error)
+    const message = error instanceof Error ? error.message : 'Erro desconhecido'
     return NextResponse.json(
-      { error: 'Falha ao importar contatos' },
+      { error: 'Falha ao importar contatos', details: message },
       { status: 500 }
     )
   }

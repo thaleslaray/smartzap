@@ -16,6 +16,7 @@ import {
   DomainOption,
   WebhookSubscription,
 } from './webhook';
+import { WebhookStatusIndicator } from './webhook/WebhookStatusIndicator';
 
 export interface WebhookConfigSectionProps {
   webhookUrl?: string;
@@ -41,6 +42,8 @@ export function WebhookConfigSection({
   webhookToken,
   webhookStats,
   webhookPath,
+  webhookSubscription,
+  webhookSubscriptionLoading,
   webhookSubscriptionMutating,
   onRefreshWebhookSubscription,
   onSubscribeWebhookMessages,
@@ -183,28 +186,19 @@ export function WebhookConfigSection({
         }
       />
 
-      {/* Versão Simples (sempre visível) */}
-      <div className="mt-4 mb-6 space-y-3">
-        <p className="text-sm text-[var(--ds-text-secondary)]">
-          O webhook conecta a Meta ao SmartZap. É por ele que:
-        </p>
-        <ul className="text-sm text-[var(--ds-text-secondary)] space-y-1 ml-4">
-          <li>• Você recebe as <strong>respostas dos contatos</strong> na Inbox</li>
-          <li>• Você vê as <strong>confirmações de entrega e leitura</strong> (✓✓) nos relatórios</li>
-        </ul>
-
-        {/* Alerta sobre o que acontece sem webhook */}
-        <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-4">
-          <p className="text-sm font-medium text-amber-400 mb-2">
-            ⚠️ Sem o webhook configurado:
-          </p>
-          <ul className="text-sm text-[var(--ds-text-secondary)] space-y-1 ml-4">
-            <li>• Você <strong>não receberá</strong> as respostas dos contatos</li>
-            <li>• Os relatórios <strong>não mostrarão</strong> se as mensagens foram entregues ou lidas</li>
-            <li>• Os fluxos automáticos <strong>não serão disparados</strong> por respostas</li>
-          </ul>
-        </div>
+      {/* Indicador de Status */}
+      <div className="mt-4">
+        <WebhookStatusIndicator
+          webhookSubscription={webhookSubscription}
+          isLoading={webhookSubscriptionLoading}
+          onRefresh={onRefreshWebhookSubscription}
+        />
       </div>
+
+      {/* Explicação curta */}
+      <p className="mt-4 mb-6 text-sm text-[var(--ds-text-secondary)]">
+        O webhook conecta a Meta ao SmartZap. Por ele você recebe respostas dos contatos e confirmações de entrega/leitura.
+      </p>
 
       {/* URL e Token para copiar */}
       <div className="bg-[var(--ds-bg-subtle)] border border-[var(--ds-border-default)] rounded-xl p-5 space-y-4">

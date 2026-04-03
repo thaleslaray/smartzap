@@ -94,8 +94,9 @@ describe('Constants', () => {
       expect(DEFAULT_LIMITS.throughputLevel).toBe('STANDARD')
     })
 
-    it('should have UNKNOWN quality score', () => {
-      expect(DEFAULT_LIMITS.qualityScore).toBe('UNKNOWN')
+    it('should have GREEN quality score as default', () => {
+      // Quando não sabemos, assumimos GREEN (comportamento otimista da Meta)
+      expect(DEFAULT_LIMITS.qualityScore).toBe('GREEN')
     })
 
     it('should have 0 usedToday', () => {
@@ -668,7 +669,8 @@ describe('fetchAccountLimits', () => {
     expect(result.qualityScore).toBe('YELLOW')
   })
 
-  it('should default to UNKNOWN quality for invalid scores', async () => {
+  it('should default to GREEN quality for invalid scores', async () => {
+    // Quando score é inválido, assume GREEN (comportamento otimista da Meta)
     const mockThroughputResponse = {
       throughput: { level: 'standard' },
       quality_score: { score: 'invalid' },
@@ -693,7 +695,7 @@ describe('fetchAccountLimits', () => {
 
     const result = await fetchAccountLimits(mockPhoneNumberId, mockAccessToken)
 
-    expect(result.qualityScore).toBe('UNKNOWN')
+    expect(result.qualityScore).toBe('GREEN')
   })
 
   it('should default to TIER_250 when tier is not in response', async () => {

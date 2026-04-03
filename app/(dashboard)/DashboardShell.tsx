@@ -27,6 +27,7 @@ import { dashboardService } from '@/services/dashboardService'
 import { useUnreadCount } from '@/hooks/useUnreadCount'
 import { PrefetchLink } from '@/components/ui/PrefetchLink'
 import { AccountAlertBanner } from '@/components/ui/AccountAlertBanner'
+import { WebhookAlertBanner } from '@/components/shared/WebhookAlertBanner'
 import { DashboardSidebar, type NavItem } from '@/components/layout/DashboardSidebar'
 import { ThemeToggle } from '@/components/ui/theme-toggle'
 import { DevModeToggle } from '@/components/ui/dev-mode-toggle'
@@ -605,6 +606,9 @@ export function DashboardShell({
                         }}
                     />
                 )}
+
+                {/* Webhook Alert Banner - mostra se webhook não configurado */}
+                <WebhookAlertBanner />
 
                 {/* Page Content */}
                 <PageContentShell>

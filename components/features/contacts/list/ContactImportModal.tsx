@@ -13,7 +13,10 @@ import {
   Users,
   UserCheck,
   UserX,
-  Copy
+  Copy,
+  Wand2,
+  ChevronDown,
+  HelpCircle
 } from 'lucide-react';
 import {
   ContactStatus,
@@ -24,6 +27,7 @@ import {
   ImportResult
 } from './types';
 import { parseCSV, formatPhoneNumber } from './utils';
+import { normalizePhoneNumber } from '@/lib/phone-formatter';
 import { ContactFieldMappingSheet } from './ContactFieldMappingSheet';
 import { Container } from '@/components/ui/container';
 import { StatusBadge } from '@/components/ui/status-badge';
@@ -74,6 +78,8 @@ export const ContactImportModal: React.FC<ContactImportModalProps> = ({
   const [existingPhones, setExistingPhones] = useState<Set<string>>(new Set()); // Telefones já no banco
   const [columnMapping, setColumnMapping] = useState<ColumnMapping>(initialColumnMapping);
   const [importResult, setImportResult] = useState<ImportResult>({ total: 0, inserted: 0, updated: 0, errors: 0 });
+  const [importError, setImportError] = useState<string | null>(null);
+  const [invalidPhoneRows, setInvalidPhoneRows] = useState<Array<{ name: string; rawPhone: string }>>([]);
   const [isMappingSheetOpen, setIsMappingSheetOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -212,7 +218,7 @@ export const ContactImportModal: React.FC<ContactImportModalProps> = ({
       });
 
       const contactsToImport: ImportContact[] = rows.map(row => {
-        const phone = formatPhoneNumber(row[phoneIdx] || '');
+        const phone = normalizePhoneNumber(row[phoneIdx] || '');
 
         // Extract custom fields
         const rowCustomFields: Record<string, any> = {};
@@ -247,15 +253,32 @@ export const ContactImportModal: React.FC<ContactImportModalProps> = ({
         };
       }).filter(c => c.phone.length > 8);
 
-      const result = await onImport(contactsToImport);
+      // Linhas descartadas por telefone inválido (< 9 dígitos após formatação)
+      const filteredOutCount = rows.length - contactsToImport.length;
 
-      setImportResult({
-        total: rows.length,
-        inserted: result.inserted,
-        updated: result.updated,
-        errors: rows.length - contactsToImport.length // Linhas com telefone inválido
-      });
-      setStep(3);
+      // Coleta os registros com telefone inválido para exibir o prompt de correção
+      const badRows = rows
+        .filter(row => normalizePhoneNumber(row[phoneIdx] || '').length <= 8 && (row[phoneIdx] || '').trim().length > 0)
+        .map(row => ({
+          name: nameIdx !== -1 ? (row[nameIdx] || '') : '',
+          rawPhone: (row[phoneIdx] || '').trim(),
+        }));
+      setInvalidPhoneRows(badRows);
+
+      try {
+        const result = await onImport(contactsToImport);
+        setImportError(null);
+        setImportResult({
+          total: rows.length,
+          inserted: result.inserted,
+          updated: result.updated,
+          errors: filteredOutCount,
+        });
+        setStep(3);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Erro desconhecido ao importar contatos';
+        setImportError(message);
+      }
     };
     reader.readAsText(csvFile);
   };
@@ -268,6 +291,7 @@ export const ContactImportModal: React.FC<ContactImportModalProps> = ({
       setCsvPreview({ headers: [], rows: [] });
       setAllRows([]);
       setColumnMapping(initialColumnMapping);
+      setInvalidPhoneRows([]);
     }, 300);
   };
 
@@ -299,20 +323,31 @@ export const ContactImportModal: React.FC<ContactImportModalProps> = ({
           )}
 
           {step === 2 && (
-            <ImportStepMapping
-              csvFile={csvFile}
-              csvPreview={csvPreview}
-              columnMapping={columnMapping}
-              customFields={customFields}
-              previewStats={previewStats}
-              onColumnMappingChange={setColumnMapping}
-              onOpenMappingSheet={() => setIsMappingSheetOpen(true)}
-              onReset={resetAndClose}
-            />
+            <>
+              <ImportStepMapping
+                csvFile={csvFile}
+                csvPreview={csvPreview}
+                columnMapping={columnMapping}
+                customFields={customFields}
+                previewStats={previewStats}
+                onColumnMappingChange={setColumnMapping}
+                onOpenMappingSheet={() => setIsMappingSheetOpen(true)}
+                onReset={resetAndClose}
+              />
+              {importError && (
+                <div className="mt-4 flex items-start gap-3 p-3 bg-red-500/10 border border-red-500/20 rounded-lg">
+                  <AlertCircle size={16} className="text-red-400 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-medium text-red-400">Falha ao importar contatos</p>
+                    <p className="text-xs text-red-400/70 mt-0.5">{importError}</p>
+                  </div>
+                </div>
+              )}
+            </>
           )}
 
           {step === 3 && (
-            <ImportStepSuccess result={importResult} />
+            <ImportStepSuccess result={importResult} invalidRows={invalidPhoneRows} onRetryFixed={onImport} />
           )}
         </div>
 
@@ -567,7 +602,10 @@ const ImportStepMapping: React.FC<ImportStepMappingProps> = ({
               </div>
               <p className="text-[9px] text-amber-500/70 uppercase">Repetidos</p>
             </div>
-            <div className="bg-red-500/10 rounded-lg p-2.5 border border-red-500/20 text-center">
+            <div
+              className="bg-red-500/10 rounded-lg p-2.5 border border-red-500/20 text-center"
+              title="Telefones com menos de 9 dígitos após formatação. Serão ignorados na importação."
+            >
               <div className="flex items-center justify-center gap-1 mb-0.5">
                 <UserX size={12} className="text-red-400" />
                 <span className="text-base font-bold text-red-400">{previewStats.invalidPhones}</span>
@@ -654,11 +692,84 @@ const ColumnMappingSelect: React.FC<ColumnMappingSelectProps> = ({
 );
 
 // Step 3: Success Component
+
+// Tenta corrigir um telefone para formato brasileiro E.164
+// Retorna o número corrigido ou null se não conseguir
+const tryFixBrazilianPhone = (rawPhone: string): string | null => {
+  const digits = rawPhone.replace(/\D/g, '');
+  if (digits.length === 0) return null;
+
+  // Já tem DDI 55 + DDD (2) + número (8-9) = 12-13 dígitos → só adiciona +
+  if ((digits.length === 12 || digits.length === 13) && digits.startsWith('55')) {
+    return `+${digits}`;
+  }
+
+  // Tem DDD (2) + número (8-9) = 10-11 dígitos → adiciona +55
+  if (digits.length === 10 || digits.length === 11) {
+    return `+55${digits}`;
+  }
+
+  // Menos de 10 dígitos → sem DDD, não dá pra corrigir com segurança
+  return null;
+};
+
+const getInvalidReason = (rawPhone: string): string => {
+  if (!rawPhone) return 'Campo vazio';
+  const digits = rawPhone.replace(/\D/g, '');
+  if (digits.length === 0) return 'Sem dígitos válidos';
+  return 'Muito curto — use DDI+DDD+número';
+};
+
 interface ImportStepSuccessProps {
   result: ImportResult;
+  invalidRows?: Array<{ name: string; rawPhone: string }>;
+  onRetryFixed?: (contacts: ImportContact[]) => Promise<{ inserted: number; updated: number }>;
 }
 
-const ImportStepSuccess: React.FC<ImportStepSuccessProps> = ({ result }) => (
+const ImportStepSuccess: React.FC<ImportStepSuccessProps> = ({ result, invalidRows = [], onRetryFixed }) => {
+  const [fixState, setFixState] = useState<'idle' | 'loading' | 'done'>('idle');
+  const [fixResult, setFixResult] = useState<{ inserted: number; updated: number } | null>(null);
+  const [stillInvalid, setStillInvalid] = useState(invalidRows);
+  const [fixError, setFixError] = useState<string | null>(null);
+  const [showFormats, setShowFormats] = useState(false);
+
+  // Quantos conseguimos corrigir automaticamente
+  const fixableCount = stillInvalid.filter(r => tryFixBrazilianPhone(r.rawPhone) !== null).length;
+
+  const handleAutoFix = async () => {
+    if (!onRetryFixed) return;
+    setFixState('loading');
+    setFixError(null);
+
+    const fixable: ImportContact[] = [];
+    const unfixable: Array<{ name: string; rawPhone: string }> = [];
+
+    for (const row of stillInvalid) {
+      const fixed = tryFixBrazilianPhone(row.rawPhone);
+      if (fixed) {
+        fixable.push({
+          name: row.name || undefined,
+          phone: fixed,
+          tags: ['Importado'],
+          status: ContactStatus.UNKNOWN,
+        });
+      } else {
+        unfixable.push(row);
+      }
+    }
+
+    try {
+      const res = await onRetryFixed(fixable);
+      setFixResult(res);
+      setStillInvalid(unfixable);
+      setFixState('done');
+    } catch (err) {
+      setFixError(err instanceof Error ? err.message : 'Erro ao importar corrigidos');
+      setFixState('idle');
+    }
+  };
+
+  return (
   <div className="text-center py-8">
     <div className="w-20 h-20 bg-emerald-500/20 rounded-full flex items-center justify-center mx-auto mb-6 text-emerald-500">
       <CheckCircle2 size={40} />
@@ -679,10 +790,161 @@ const ImportStepSuccess: React.FC<ImportStepSuccessProps> = ({ result }) => (
         <p className="text-2xl font-bold text-blue-400">{result.updated}</p>
         <p className="text-xs text-blue-500/70">Atualizados</p>
       </div>
-      <Container variant="surface" padding="md">
+      <div
+        className="bg-zinc-800/50 rounded-xl p-4 border border-zinc-700/50 text-center"
+        title={result.errors > 0 ? 'Linhas ignoradas por telefone inválido' : undefined}
+      >
         <p className="text-2xl font-bold text-gray-400">{result.errors}</p>
         <p className="text-xs text-gray-500">Ignorados</p>
-      </Container>
+      </div>
     </div>
+
+    {/* Feedback da autocorreção */}
+    {fixState === 'done' && fixResult && (
+      <div className="flex items-center justify-center gap-2 max-w-lg mx-auto mb-4 p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-lg">
+        <CheckCircle2 size={14} className="text-emerald-400 shrink-0" />
+        <p className="text-xs text-emerald-400">
+          {fixResult.inserted + fixResult.updated} número{fixResult.inserted + fixResult.updated !== 1 ? 's corrigidos' : ' corrigido'} e importado{fixResult.inserted + fixResult.updated !== 1 ? 's' : ''} com sucesso!
+        </p>
+      </div>
+    )}
+
+    {/* Tabela de inválidos restantes */}
+    {stillInvalid.length > 0 && (
+      <div className="max-w-lg mx-auto text-left">
+        {/* Banner com botão de autocorreção */}
+        <div className="flex items-start gap-2 p-3 bg-amber-500/10 border border-amber-500/20 rounded-t-lg">
+          <AlertCircle size={14} className="text-amber-400 shrink-0 mt-0.5" />
+          <div className="flex-1 min-w-0">
+            <p className="text-xs text-amber-400/80">
+              {stillInvalid.length} contato{stillInvalid.length !== 1 ? 's ignorados' : ' ignorado'} por telefone inválido.
+            </p>
+            {fixableCount > 0 && fixState !== 'done' && (
+              <p className="text-xs text-amber-400/60 mt-0.5">
+                {fixableCount} podem ser corrigidos automaticamente (adicionar +55).
+              </p>
+            )}
+          </div>
+          {fixableCount > 0 && fixState !== 'done' && onRetryFixed && (
+            <button
+              onClick={handleAutoFix}
+              disabled={fixState === 'loading'}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-primary-600 hover:bg-primary-500 text-white text-xs font-medium rounded-lg transition-colors disabled:opacity-50 shrink-0"
+            >
+              {fixState === 'loading' ? (
+                <><Loader2 size={12} className="animate-spin" /> Corrigindo...</>
+              ) : (
+                <><Wand2 size={12} /> Corrigir +55</>
+              )}
+            </button>
+          )}
+        </div>
+
+        {fixError && (
+          <p className="text-xs text-red-400 px-3 py-2 bg-red-500/10 border-x border-amber-500/20">{fixError}</p>
+        )}
+
+        <div className="overflow-x-auto border border-t-0 border-amber-500/20 rounded-b-lg">
+          <table className="w-full text-xs">
+            <thead className="bg-amber-500/10">
+              <tr>
+                <th className="px-3 py-2 text-left text-amber-400/70 font-medium">Nome</th>
+                <th className="px-3 py-2 text-left text-amber-400/70 font-medium">Telefone original</th>
+                <th className="px-3 py-2 text-left text-amber-400/70 font-medium">Motivo</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-white/5 bg-zinc-900/40">
+              {stillInvalid.map((row, i) => (
+                <tr key={i}>
+                  <td className="px-3 py-2 text-gray-300 max-w-[120px] truncate">
+                    {row.name || <span className="text-gray-600 italic">sem nome</span>}
+                  </td>
+                  <td className="px-3 py-2 font-mono text-red-400">
+                    {row.rawPhone || <span className="text-gray-600 italic">vazio</span>}
+                  </td>
+                  <td className="px-3 py-2 text-gray-400">{getInvalidReason(row.rawPhone)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        {/* Ajuda expansível — formatos aceitos */}
+        <div className="mt-3">
+          <button
+            onClick={() => setShowFormats(v => !v)}
+            className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-300 transition-colors"
+          >
+            <HelpCircle className="w-3.5 h-3.5" />
+            Quais formatos de telefone são aceitos?
+            <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${showFormats ? 'rotate-180' : ''}`} />
+          </button>
+
+          {showFormats && (
+            <div className="mt-2 rounded-lg border border-white/10 bg-zinc-900/60 p-3 space-y-3 text-xs">
+              {/* Corrigido automaticamente */}
+              <div>
+                <p className="text-emerald-400 font-medium mb-1.5">✅ Aceitos e corrigidos automaticamente</p>
+                <table className="w-full">
+                  <thead>
+                    <tr className="text-gray-500 text-[10px]">
+                      <th className="text-left pb-1 font-medium w-1/2">Você coloca no CSV</th>
+                      <th className="text-left pb-1 font-medium">Como fica salvo</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/5">
+                    {[
+                      ['11 99999-0001',        '+5511999990001'],
+                      ['(21) 9 8888-0002',     '+5521988880002'],
+                      ['31-97777-0003',         '+5531977770003'],
+                      ['+5511999990001',        '+5511999990001'],
+                      ['+1 415 555 0001',       '+14155550001'],
+                    ].map(([in_, out_], i) => (
+                      <tr key={i}>
+                        <td className="py-1 pr-2 font-mono text-gray-300">{in_}</td>
+                        <td className="py-1 font-mono text-emerald-400">{out_}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Rejeitados */}
+              <div>
+                <p className="text-red-400 font-medium mb-1.5">❌ Rejeitados — o que fazer</p>
+                <table className="w-full">
+                  <thead>
+                    <tr className="text-gray-500 text-[10px]">
+                      <th className="text-left pb-1 font-medium w-1/3">Exemplo</th>
+                      <th className="text-left pb-1 font-medium">Problema</th>
+                      <th className="text-left pb-1 font-medium">Solução</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/5">
+                    {[
+                      ['9999',    'Número muito curto',        'Use o número completo com DDD'],
+                      ['11',      'Só o código da cidade',     'Adicione o número depois do DDD'],
+                      ['',        'Campo vazio',                'Preencha o telefone no CSV'],
+                      ['11abc99', 'Letras no número',          'Use apenas dígitos'],
+                    ].map(([ex, prob, sol], i) => (
+                      <tr key={i}>
+                        <td className="py-1 pr-2 font-mono text-red-400">{ex || <span className="italic text-gray-600">vazio</span>}</td>
+                        <td className="py-1 pr-2 text-gray-400">{prob}</td>
+                        <td className="py-1 text-gray-300">{sol}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <p className="text-gray-600 text-[10px] pt-1 border-t border-white/5">
+                Números brasileiros sem código de país (+55) são corrigidos automaticamente.
+                Internacionais precisam do código do país (ex: +1, +33, +351).
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
+    )}
   </div>
-);
+  );
+};

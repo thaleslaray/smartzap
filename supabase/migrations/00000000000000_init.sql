@@ -55,8 +55,8 @@ DECLARE
 BEGIN
     SELECT json_build_object(
         'total', COUNT(*),
-        'optIn', COUNT(*) FILTER (WHERE status = 'Opt-in'),
-        'optOut', COUNT(*) FILTER (WHERE status = 'Opt-out')
+        'optIn', COUNT(*) FILTER (WHERE status IN ('Opt-in', 'OPT_IN')),
+        'optOut', COUNT(*) FILTER (WHERE status IN ('Opt-out', 'OPT_OUT'))
     ) INTO result
     FROM contacts;
 
@@ -73,7 +73,9 @@ DECLARE
 BEGIN
     SELECT COALESCE(json_agg(DISTINCT tag ORDER BY tag), '[]'::json) INTO result
     FROM contacts, jsonb_array_elements_text(tags) AS tag
-    WHERE tags IS NOT NULL AND jsonb_array_length(tags) > 0;
+    WHERE tags IS NOT NULL AND jsonb_array_length(tags) > 0
+      AND length(trim(tag)) > 0
+      AND tag NOT LIKE '[%]';
 
     RETURN COALESCE(result, '[]'::json);
 END;
@@ -1425,6 +1427,8 @@ CREATE INDEX idx_campaigns_active ON public.campaigns USING btree (status, sched
 
 CREATE INDEX idx_contacts_custom_fields ON public.contacts USING gin (custom_fields);
 
+CREATE INDEX idx_contacts_tags ON public.contacts USING gin (tags);
+
 -- idx_contacts_phone removido: redundante com contacts_phone_key UNIQUE
 
 CREATE INDEX idx_contacts_status ON public.contacts USING btree (status);
@@ -1753,6 +1757,82 @@ REVOKE ALL ON FUNCTION public.get_contact_tags() FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.get_contact_tags() FROM anon;
 REVOKE ALL ON FUNCTION public.get_contact_tags() FROM authenticated;
 GRANT EXECUTE ON FUNCTION public.get_contact_tags() TO service_role;
+
+CREATE OR REPLACE FUNCTION public.bulk_update_contact_tags(
+    p_ids text[],
+    p_tags_to_add text[],
+    p_tags_to_remove text[]
+) RETURNS integer
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+DECLARE
+    v_count integer;
+BEGIN
+    UPDATE contacts c
+    SET tags = (
+        SELECT COALESCE(jsonb_agg(elem ORDER BY elem), '[]'::jsonb)
+        FROM (
+            SELECT DISTINCT elem
+            FROM (
+                -- Extrai tags existentes como texto plano (achata nested arrays)
+                SELECT CASE
+                    WHEN jsonb_typeof(arr_elem) = 'array'
+                    THEN sub_text
+                    ELSE arr_elem #>> '{}'
+                END AS elem
+                FROM jsonb_array_elements(COALESCE(c.tags, '[]'::jsonb)) AS arr_elem
+                LEFT JOIN LATERAL jsonb_array_elements_text(
+                    CASE WHEN jsonb_typeof(arr_elem) = 'array' THEN arr_elem ELSE '[]'::jsonb END
+                ) AS sub_text ON true
+                WHERE CASE
+                    WHEN jsonb_typeof(arr_elem) = 'array' THEN sub_text IS NOT NULL
+                    ELSE true
+                END
+                UNION ALL
+                -- Adiciona novas tags
+                SELECT t AS elem
+                FROM UNNEST(COALESCE(p_tags_to_add, ARRAY[]::text[])) AS t
+            ) all_tags
+            WHERE elem IS NOT NULL
+              AND length(trim(elem)) > 0
+              AND NOT (elem = ANY(COALESCE(p_tags_to_remove, ARRAY[]::text[])))
+        ) unique_tags
+    )
+    WHERE c.id = ANY(p_ids);
+
+    GET DIAGNOSTICS v_count = ROW_COUNT;
+    RETURN v_count;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.bulk_update_contact_tags(text[], text[], text[]) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.bulk_update_contact_tags(text[], text[], text[]) FROM anon;
+REVOKE ALL ON FUNCTION public.bulk_update_contact_tags(text[], text[], text[]) FROM authenticated;
+GRANT EXECUTE ON FUNCTION public.bulk_update_contact_tags(text[], text[], text[]) TO service_role;
+
+-- Função RPC para deletar múltiplos contatos em lote.
+-- Substitui .delete().in('id', ids) que gerava 414 por URLs longas.
+CREATE OR REPLACE FUNCTION public.bulk_delete_contacts(
+    p_ids text[]
+) RETURNS integer
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+DECLARE
+    v_count integer;
+BEGIN
+    DELETE FROM contacts WHERE id = ANY(p_ids);
+
+    GET DIAGNOSTICS v_count = ROW_COUNT;
+    RETURN v_count;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.bulk_delete_contacts(text[]) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.bulk_delete_contacts(text[]) FROM anon;
+REVOKE ALL ON FUNCTION public.bulk_delete_contacts(text[]) FROM authenticated;
+GRANT EXECUTE ON FUNCTION public.bulk_delete_contacts(text[]) TO service_role;
 
 REVOKE ALL ON FUNCTION public.get_dashboard_stats() FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.get_dashboard_stats() FROM anon;

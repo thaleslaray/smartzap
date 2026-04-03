@@ -125,15 +125,15 @@ export const useSettingsController = () => {
     queryKey: ['metaWebhookSubscription'],
     queryFn: async (): Promise<WebhookSubscriptionStatus> => {
       const response = await fetch('/api/meta/webhooks/subscription');
-      const data = await response.json().catch(() => ({}));
+      const data = await response.json().catch(() => ({})) as Record<string, unknown>;
       if (!response.ok) {
         return {
           ok: false,
-          error: (data as any)?.error || 'Falha ao consultar subscription',
-          details: (data as any)?.details,
+          error: (data?.error as string) || 'Falha ao consultar subscription',
+          details: data?.details,
         };
       }
-      return data as WebhookSubscriptionStatus;
+      return data as unknown as WebhookSubscriptionStatus;
     },
     enabled: !!settingsData?.isConnected,
     refetchOnMount: 'always',
@@ -334,7 +334,7 @@ export const useSettingsController = () => {
       await queryClient.refetchQueries({ queryKey: ['whatsappThrottle'] });
       toast.success('Configuração do modo turbo salva!');
     },
-    onError: (err: any) => {
+    onError: (err: Error) => {
       toast.error(err?.message || 'Erro ao salvar modo turbo');
     }
   });
@@ -345,7 +345,7 @@ export const useSettingsController = () => {
       await queryClient.refetchQueries({ queryKey: ['autoSuppression'] });
       toast.success('Configuração de auto-supressão salva!');
     },
-    onError: (err: any) => {
+    onError: (err: Error) => {
       toast.error(err?.message || 'Erro ao salvar auto-supressão');
     },
   });
@@ -356,7 +356,7 @@ export const useSettingsController = () => {
       await queryClient.refetchQueries({ queryKey: ['allSettings'] });
       toast.success('Configuração de agendamento salva!');
     },
-    onError: (err: any) => {
+    onError: (err: Error) => {
       toast.error(err?.message || 'Erro ao salvar configuracao de agendamento');
     },
   });
@@ -368,7 +368,7 @@ export const useSettingsController = () => {
       await queryClient.refetchQueries({ queryKey: ['allSettings'] });
       toast.success('Configuração de execução salva!');
     },
-    onError: (err: any) => {
+    onError: (err: Error) => {
       toast.error(err?.message || 'Erro ao salvar configuração de execução');
     },
   });
@@ -380,7 +380,7 @@ export const useSettingsController = () => {
       await queryClient.refetchQueries({ queryKey: ['allSettings'] });
       toast.success('Credenciais do Upstash salvas!');
     },
-    onError: (err: any) => {
+    onError: (err: Error) => {
       toast.error(err?.message || 'Erro ao salvar credenciais do Upstash');
     },
   });
@@ -391,7 +391,7 @@ export const useSettingsController = () => {
       await queryClient.refetchQueries({ queryKey: ['allSettings'] });
       toast.success('Credenciais do Upstash removidas!');
     },
-    onError: (err: any) => {
+    onError: (err: Error) => {
       toast.error(err?.message || 'Erro ao remover credenciais do Upstash');
     },
   });
@@ -404,18 +404,19 @@ export const useSettingsController = () => {
         body: JSON.stringify({ callbackUrl }), // Passa a URL do frontend (ex: URL de túnel em dev)
       });
 
-      const data = await response.json().catch(() => ({}));
+      const data = await response.json().catch(() => ({})) as Record<string, unknown>;
       if (!response.ok) {
-        throw new Error((data as any)?.error || 'Erro ao configurar webhook WABA');
+        throw new Error((data?.error as string) || 'Erro ao configurar webhook WABA');
       }
 
       return data;
     },
-    onSuccess: async (data: any) => {
+    onSuccess: async (data: Record<string, unknown>) => {
       await queryClient.invalidateQueries({ queryKey: ['metaWebhookSubscription'] });
       await queryClient.refetchQueries({ queryKey: ['metaWebhookSubscription'] });
 
-      const isSmartZap = data?.wabaOverride?.isSmartZap;
+      const wabaOverride = data?.wabaOverride as Record<string, unknown> | undefined;
+      const isSmartZap = wabaOverride?.isSmartZap;
       if (isSmartZap) {
         toast.success('SmartZap ativado para WABA!', {
           description: 'Todos os números sem override #1 usarão este webhook.',
@@ -426,7 +427,7 @@ export const useSettingsController = () => {
         });
       }
     },
-    onError: (err: any) => {
+    onError: (err: Error) => {
       toast.error(err?.message || 'Erro ao configurar webhook WABA');
     },
   });
@@ -459,15 +460,17 @@ export const useSettingsController = () => {
           ? `${phone} • ${result.verifiedName}${(!formSettings.businessAccountId && result?.wabaId) ? `\nWABA preenchido automaticamente: ${result.wabaId}` : ''}`
           : `${phone}${(!formSettings.businessAccountId && result?.wabaId) ? `\nWABA preenchido automaticamente: ${result.wabaId}` : ''}`,
       });
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast.dismiss(toastId);
-      const msg = err?.message || 'Falha ao testar conexão';
-      const details = err?.details;
+      const error = err as Error & { details?: Record<string, unknown> };
+      const msg = error?.message || 'Falha ao testar conexão';
+      const details = error?.details;
 
-      const hintTitle = (details as any)?.details?.hintTitle as string | undefined
-      const hint = (details as any)?.details?.hint as string | undefined
-      const nextSteps = (details as any)?.details?.nextSteps as string[] | undefined
-      const fbtraceId = (details as any)?.details?.fbtraceId as string | undefined
+      const innerDetails = details?.details as Record<string, unknown> | undefined
+      const hintTitle = innerDetails?.hintTitle as string | undefined
+      const hint = innerDetails?.hint as string | undefined
+      const nextSteps = innerDetails?.nextSteps as string[] | undefined
+      const fbtraceId = innerDetails?.fbtraceId as string | undefined
 
       const stepsPreview = Array.isArray(nextSteps) && nextSteps.length
         ? nextSteps.slice(0, 2).map((s) => `• ${s}`).join('\n')
@@ -494,18 +497,19 @@ export const useSettingsController = () => {
         method: 'DELETE',
       });
 
-      const data = await response.json().catch(() => ({}));
+      const data = await response.json().catch(() => ({})) as Record<string, unknown>;
       if (!response.ok) {
-        throw new Error((data as any)?.error || 'Erro ao remover webhook WABA');
+        throw new Error((data?.error as string) || 'Erro ao remover webhook WABA');
       }
 
       return data;
     },
-    onSuccess: async (data: any) => {
+    onSuccess: async (data: Record<string, unknown>) => {
       await queryClient.invalidateQueries({ queryKey: ['metaWebhookSubscription'] });
       await queryClient.refetchQueries({ queryKey: ['metaWebhookSubscription'] });
 
-      const isConfigured = data?.wabaOverride?.isConfigured;
+      const wabaOverrideUnsub = data?.wabaOverride as Record<string, unknown> | undefined;
+      const isConfigured = wabaOverrideUnsub?.isConfigured;
       if (!isConfigured) {
         toast.success('Override WABA removido.', {
           description: 'Webhooks voltarão a usar o fallback do App (#3).',
@@ -516,7 +520,7 @@ export const useSettingsController = () => {
         });
       }
     },
-    onError: (err: any) => {
+    onError: (err: Error) => {
       toast.error(err?.message || 'Erro ao remover webhook WABA');
     },
   });
@@ -636,10 +640,10 @@ export const useSettingsController = () => {
       });
 
       if (!response.ok) {
-        const error = await response.json().catch(() => ({}));
-        const title = (error as any)?.error || 'Erro ao configurar webhook';
-        const hint = (error as any)?.hint || (error as any)?.action;
-        const code = (error as any)?.code;
+        const errorData = await response.json().catch(() => ({})) as Record<string, unknown>;
+        const title = (errorData?.error as string) || 'Erro ao configurar webhook';
+        const hint = (errorData?.hint as string) || (errorData?.action as string);
+        const code = errorData?.code as string | undefined;
 
         if (hint) {
           toast.error(title, {
@@ -780,8 +784,8 @@ export const useSettingsController = () => {
     webhookSubscription: webhookSubscriptionQuery.data,
     webhookSubscriptionLoading: webhookSubscriptionQuery.isLoading,
     refreshWebhookSubscription: () => queryClient.invalidateQueries({ queryKey: ['metaWebhookSubscription'] }),
-    subscribeWebhookMessages: subscribeWebhookMessagesMutation.mutateAsync,
-    unsubscribeWebhookMessages: unsubscribeWebhookMessagesMutation.mutateAsync,
+    subscribeWebhookMessages: async (callbackUrl?: string) => { await subscribeWebhookMessagesMutation.mutateAsync(callbackUrl) },
+    unsubscribeWebhookMessages: async () => { await unsubscribeWebhookMessagesMutation.mutateAsync() },
     webhookSubscriptionMutating: subscribeWebhookMessagesMutation.isPending || unsubscribeWebhookMessagesMutation.isPending,
     // Phone numbers for webhook override
     phoneNumbers: phoneNumbersQuery.data || [],

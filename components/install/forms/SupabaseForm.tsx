@@ -6,7 +6,7 @@ import { ChevronDown, Pause, Loader2, Info, AlertCircle } from 'lucide-react';
 import { TokenInput } from '../TokenInput';
 import { ValidatingOverlay } from '../ValidatingOverlay';
 import { SuccessCheckmark } from '../SuccessCheckmark';
-import { VALIDATION } from '@/lib/installer/types';
+import { VALIDATION, normalizeToken } from '@/lib/installer/types';
 import { cn } from '@/lib/utils';
 import type { FormProps } from './types';
 
@@ -83,8 +83,8 @@ export function SupabaseForm({ data, onComplete, onBack, showBack }: FormProps) 
   const [pausePolling, setPausePolling] = useState(false);
 
   const isValidFormat =
-    pat.trim().startsWith(VALIDATION.SUPABASE_PAT_PREFIX) &&
-    pat.trim().length >= VALIDATION.SUPABASE_PAT_MIN_LENGTH;
+    normalizeToken(pat).startsWith(VALIDATION.SUPABASE_PAT_PREFIX) &&
+    normalizeToken(pat).length >= VALIDATION.SUPABASE_PAT_MIN_LENGTH;
 
   // Lista de projetos free ativos para a UI de needspace
   const freeActiveProjects = useMemo(() => {
@@ -100,7 +100,7 @@ export function SupabaseForm({ data, onComplete, onBack, showBack }: FormProps) 
       const res = await fetch('/api/installer/supabase/preflight', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ accessToken: pat.trim() }),
+        body: JSON.stringify({ accessToken: normalizeToken(pat) }),
       });
 
       const result = await res.json();
@@ -199,7 +199,7 @@ export function SupabaseForm({ data, onComplete, onBack, showBack }: FormProps) 
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            accessToken: pat.trim(),
+            accessToken: normalizeToken(pat),
             projectRef,
           }),
         });
@@ -242,7 +242,7 @@ export function SupabaseForm({ data, onComplete, onBack, showBack }: FormProps) 
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          accessToken: pat.trim(),
+          accessToken: normalizeToken(pat),
           projectRef,
         }),
       });
@@ -282,7 +282,7 @@ export function SupabaseForm({ data, onComplete, onBack, showBack }: FormProps) 
   // ---------------------------------------------------------------------------
 
   const handleSuccessComplete = () => {
-    onComplete({ supabasePat: pat.trim() });
+    onComplete({ supabasePat: normalizeToken(pat) });
   };
 
   const handleAutoSubmit = () => {

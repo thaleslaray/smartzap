@@ -70,6 +70,22 @@ const nextConfig: NextConfig = {
     root: __dirname,
   },
 
+  async redirects() {
+    return [
+      // Redireciona rotas de documentação legada para a rota real do wizard
+      {
+        source: '/install/start',
+        destination: '/install',
+        permanent: false,
+      },
+      {
+        source: '/install/wizard',
+        destination: '/install',
+        permanent: false,
+      },
+    ]
+  },
+
   async headers() {
     return [
       {

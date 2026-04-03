@@ -5,6 +5,7 @@
 
 import { useCallback } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
 import {
   aiAgentService,
   type CreateAIAgentParams,
@@ -72,15 +73,18 @@ export function useAIAgentMutations() {
   const createMutation = useMutation({
     mutationFn: (params: CreateAIAgentParams) => aiAgentService.create(params),
     onSuccess: (newAgent) => {
-      // Add to cache
+      // Adiciona ao cache otimisticamente
       queryClient.setQueryData<AIAgent[]>(AI_AGENTS_KEY, (old) => {
         if (!old) return [newAgent]
-        // If new agent is default, update others
+        // Se o novo agente for padrão, desmarca os demais
         if (newAgent.is_default) {
           return [newAgent, ...old.map((a) => ({ ...a, is_default: false }))]
         }
         return [newAgent, ...old]
       })
+    },
+    onError: (err: Error) => {
+      toast.error(err?.message || 'Erro ao criar agente de IA')
     },
   })
 
@@ -103,6 +107,9 @@ export function useAIAgentMutations() {
       })
       // Update single agent cache
       queryClient.setQueryData([...AI_AGENTS_KEY, updated.id], updated)
+    },
+    onError: (err: Error) => {
+      toast.error(err?.message || 'Erro ao atualizar agente de IA')
     },
   })
 

@@ -725,10 +725,11 @@ describe('whatsapp-adaptive-throttle', () => {
 
       const config = await getAdaptiveThrottleConfig()
 
-      expect(config.enabled).toBe(false)
-      expect(config.sendConcurrency).toBe(1)
-      expect(config.batchSize).toBe(10)
-      expect(config.startMps).toBe(30)
+      // Defaults: ativado por padrão com valores conservadores (Balanced profile)
+      expect(config.enabled).toBe(true)
+      expect(config.sendConcurrency).toBe(2)
+      expect(config.batchSize).toBe(40)
+      expect(config.startMps).toBe(20)
       expect(config.maxMps).toBe(80)
       expect(config.minMps).toBe(5)
       expect(config.cooldownSec).toBe(30)

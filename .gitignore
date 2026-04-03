@@ -102,6 +102,9 @@ coverage/
 
 # Testes (mantidos apenas localmente - repo público)
 tests/
+# Helpers de teste são necessários no CI
+!tests/helpers/
+!tests/helpers/**
 
 # Legacy (can be removed)
 # vite.config.ts

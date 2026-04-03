@@ -129,7 +129,7 @@ export default function InstallPage() {
     if (isProgressEvent(event)) {
       dispatch(actions.progress(event.progress, event.title, event.subtitle));
     } else if (isErrorEvent(event)) {
-      dispatch(actions.error(event.error, event.returnToStep, event.errorDetails));
+      dispatch(actions.error(event.error, event.returnToStep, event.errorType, event.errorDetails));
     } else if (isCompleteEvent(event)) {
       dispatch(actions.complete());
     }
@@ -242,6 +242,7 @@ export default function InstallPage() {
       <InstallLayout showDots={false}>
         <ErrorView
           error={state.error}
+          errorType={state.errorType}
           errorDetails={state.errorDetails}
           onRetry={handleRetry}
           onGoToStep={handleGoToStep}

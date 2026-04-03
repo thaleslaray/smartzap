@@ -2,29 +2,21 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 import { inboxService } from './inboxService'
 
-// Mock global fetch
-const mockFetch: ReturnType<typeof vi.fn> = vi.fn()
-const originalFetch = globalThis.fetch
-
-const createMockResponse = (data: unknown, options?: { ok?: boolean; status?: number }) => ({
-  ok: options?.ok ?? true,
-  status: options?.status ?? 200,
-  json: vi.fn().mockResolvedValue(data),
-})
+import { createMockFetchResponse, setupFetchMock } from '@/tests/helpers'
 
 describe('inboxService', () => {
+  const mockFetch = setupFetchMock()
+
   beforeEach(() => {
     vi.clearAllMocks()
-    ;(globalThis as any).fetch = mockFetch
   })
 
   afterEach(() => {
     vi.resetAllMocks()
-    ;(globalThis as any).fetch = originalFetch
   })
 
   it('listConversations deve montar query params', async () => {
-    mockFetch.mockResolvedValueOnce(createMockResponse({ conversations: [], total: 0, page: 1, totalPages: 0 }))
+    mockFetch.mockResolvedValueOnce(createMockFetchResponse({ conversations: [], total: 0, page: 1, totalPages: 0 }))
 
     await inboxService.listConversations({ page: 2, limit: 10, status: 'open', search: 'ana' } as any)
 
@@ -32,19 +24,19 @@ describe('inboxService', () => {
   })
 
   it('getConversation deve lançar erro com status', async () => {
-    mockFetch.mockResolvedValueOnce(createMockResponse({ error: 'Not found' }, { ok: false, status: 404 }))
+    mockFetch.mockResolvedValueOnce(createMockFetchResponse({ error: 'Not found' }, { ok: false, status: 404 }))
 
     await expect(inboxService.getConversation('c1')).rejects.toThrow('404: Not found')
   })
 
   it('sendMessage deve lançar erro quando falha', async () => {
-    mockFetch.mockResolvedValueOnce(createMockResponse({ error: 'Falhou' }, { ok: false }))
+    mockFetch.mockResolvedValueOnce(createMockFetchResponse({ error: 'Falhou' }, { ok: false }))
 
     await expect(inboxService.sendMessage('c1', { content: 'oi' })).rejects.toThrow('Falhou')
   })
 
   it('createLabel deve enviar payload', async () => {
-    mockFetch.mockResolvedValueOnce(createMockResponse({ id: 'l1', name: 'VIP' }))
+    mockFetch.mockResolvedValueOnce(createMockFetchResponse({ id: 'l1', name: 'VIP' }))
 
     await inboxService.createLabel({ name: 'VIP', color: '#fff' })
 
@@ -54,7 +46,7 @@ describe('inboxService', () => {
   })
 
   it('updateQuickReply deve usar PATCH', async () => {
-    mockFetch.mockResolvedValueOnce(createMockResponse({ id: 'q1', title: 't', content: 'c' }))
+    mockFetch.mockResolvedValueOnce(createMockFetchResponse({ id: 'q1', title: 't', content: 'c' }))
 
     await inboxService.updateQuickReply('q1', { title: 'novo' })
 
@@ -62,13 +54,13 @@ describe('inboxService', () => {
   })
 
   it('handoffToHuman deve lançar erro', async () => {
-    mockFetch.mockResolvedValueOnce(createMockResponse({ error: 'Falhou' }, { ok: false }))
+    mockFetch.mockResolvedValueOnce(createMockFetchResponse({ error: 'Falhou' }, { ok: false }))
 
     await expect(inboxService.handoffToHuman('c1')).rejects.toThrow('Falhou')
   })
 
   it('pauseAutomation deve enviar duration', async () => {
-    mockFetch.mockResolvedValueOnce(createMockResponse({
+    mockFetch.mockResolvedValueOnce(createMockFetchResponse({
       success: true,
       conversation: { id: 'c1' },
       paused_until: 'x',
