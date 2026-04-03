@@ -12,6 +12,10 @@ type RouteParams = { params: Promise<{ phone: string }> }
  * Retorna a supressão ativa para o telefone informado (se existir).
  */
 export async function GET(request: NextRequest, { params }: RouteParams) {
+  // Requer autenticação (sessão ou API key)
+  const authError = await requireSessionOrApiKey(request)
+  if (authError) return authError
+
   const { phone: phoneRaw } = await params
   const phone = normalizePhoneNumber(phoneRaw)
 
