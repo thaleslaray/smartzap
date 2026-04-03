@@ -1,20 +1,10 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { Route, Info, Loader2, Check, ChevronDown } from 'lucide-react';
+import { Route, Info, Loader2, Check, ChevronDown, Search } from 'lucide-react';
 import { toast } from 'sonner';
 import { DEFAULT_AI_GATEWAY, type AiGatewayConfig } from '@/lib/ai/ai-center-defaults';
-
-// Modelos disponíveis para fallback no Gateway (IDs no formato provider/model com pontos nas versões)
-const GATEWAY_FALLBACK_MODELS = [
-  { id: 'google/gemini-2.5-flash', name: 'Gemini 2.5 Flash', provider: 'Google' },
-  { id: 'google/gemini-2.5-pro', name: 'Gemini 2.5 Pro', provider: 'Google' },
-  { id: 'google/gemini-3-flash-preview', name: 'Gemini 3 Flash Preview', provider: 'Google' },
-  { id: 'openai/gpt-5.4', name: 'GPT-5.4', provider: 'OpenAI' },
-  { id: 'openai/gpt-5.4-mini', name: 'GPT-5.4 Mini', provider: 'OpenAI' },
-  { id: 'anthropic/claude-sonnet-4.5', name: 'Claude Sonnet 4.5', provider: 'Anthropic' },
-  { id: 'anthropic/claude-haiku-4.5', name: 'Claude Haiku 4.5', provider: 'Anthropic' },
-];
+import type { GatewayModel } from '@/app/api/ai/gateway-models/route';
 
 /**
  * AIGatewayPanel - Configuração do Vercel AI Gateway
@@ -28,6 +18,9 @@ export function AIGatewayPanel() {
   const [saving, setSaving] = useState(false);
   const [config, setConfig] = useState<AiGatewayConfig>(DEFAULT_AI_GATEWAY);
   const [showFallbackConfig, setShowFallbackConfig] = useState(false);
+  const [models, setModels] = useState<GatewayModel[]>([]);
+  const [modelsLoading, setModelsLoading] = useState(false);
+  const [modelSearch, setModelSearch] = useState('');
 
   const fetchConfig = useCallback(async () => {
     try {
@@ -48,6 +41,16 @@ export function AIGatewayPanel() {
   useEffect(() => {
     fetchConfig();
   }, [fetchConfig]);
+
+  useEffect(() => {
+    if (!showFallbackConfig || models.length > 0) return;
+    setModelsLoading(true);
+    fetch('/api/ai/gateway-models')
+      .then((r) => r.json())
+      .then((d) => setModels(d.models ?? []))
+      .catch(() => setModels([]))
+      .finally(() => setModelsLoading(false));
+  }, [showFallbackConfig, models.length]);
 
   const handleSaveConfig = async (updates: Partial<AiGatewayConfig>) => {
     setSaving(true);
@@ -214,46 +217,86 @@ export function AIGatewayPanel() {
             </button>
 
             {showFallbackConfig && (
-              <div className="mt-4 space-y-2 border-t border-[var(--ds-border-subtle)] pt-4">
+              <div className="mt-4 border-t border-[var(--ds-border-subtle)] pt-4">
                 <p className="text-xs text-[var(--ds-text-secondary)] mb-3">
                   Selecione os modelos que serão usados como fallback quando o modelo primário falhar.
                 </p>
 
-                {GATEWAY_FALLBACK_MODELS.map((model) => {
-                  const isSelected = config.fallbackModels?.includes(model.id);
-                  return (
-                    <button
-                      key={model.id}
-                      type="button"
-                      onClick={() => handleToggleFallbackModel(model.id)}
-                      disabled={saving}
-                      className={`flex w-full items-center justify-between rounded-lg border p-3 transition ${
-                        isSelected
-                          ? 'border-violet-500/30 bg-violet-500/10'
-                          : 'border-[var(--ds-border-default)] bg-[var(--ds-bg-surface)] hover:bg-[var(--ds-bg-hover)]'
-                      } ${saving ? 'opacity-60' : ''}`}
-                    >
-                      <div className="flex items-center gap-3">
-                        <div
-                          className={`flex size-5 items-center justify-center rounded border transition ${
-                            isSelected
-                              ? 'border-violet-500 bg-violet-500'
-                              : 'border-[var(--ds-border-default)] bg-[var(--ds-bg-surface)]'
-                          }`}
-                        >
-                          {isSelected && <Check size={12} className="text-white" />}
-                        </div>
-                        <div className="text-left">
-                          <div className="text-sm text-[var(--ds-text-primary)]">{model.name}</div>
-                          <div className="text-xs text-[var(--ds-text-muted)]">{model.provider}</div>
-                        </div>
-                      </div>
-                      <code className="text-xs text-[var(--ds-text-muted)] bg-[var(--ds-bg-hover)] px-2 py-0.5 rounded">
-                        {model.id}
-                      </code>
-                    </button>
-                  );
-                })}
+                {/* Busca */}
+                <div className="relative mb-3">
+                  <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--ds-text-muted)]" />
+                  <input
+                    type="text"
+                    placeholder="Buscar modelos..."
+                    value={modelSearch}
+                    onChange={(e) => setModelSearch(e.target.value)}
+                    className="w-full rounded-lg border border-[var(--ds-border-default)] bg-[var(--ds-bg-surface)] py-1.5 pl-8 pr-3 text-xs text-[var(--ds-text-primary)] placeholder:text-[var(--ds-text-muted)] focus:outline-none focus:ring-1 focus:ring-violet-500/40"
+                  />
+                </div>
+
+                {modelsLoading ? (
+                  <div className="flex items-center gap-2 py-4 text-[var(--ds-text-muted)]">
+                    <Loader2 size={14} className="animate-spin" />
+                    <span className="text-xs">Carregando modelos...</span>
+                  </div>
+                ) : (
+                  <div className="max-h-72 space-y-1.5 overflow-y-auto pr-1">
+                    {models
+                      .filter((m) => {
+                        const q = modelSearch.toLowerCase();
+                        return (
+                          !q ||
+                          m.name.toLowerCase().includes(q) ||
+                          m.id.toLowerCase().includes(q) ||
+                          m.provider.toLowerCase().includes(q)
+                        );
+                      })
+                      .map((model) => {
+                        const isSelected = config.fallbackModels?.includes(model.id);
+                        return (
+                          <button
+                            key={model.id}
+                            type="button"
+                            onClick={() => handleToggleFallbackModel(model.id)}
+                            disabled={saving}
+                            className={`flex w-full items-center justify-between rounded-lg border p-2.5 transition ${
+                              isSelected
+                                ? 'border-violet-500/30 bg-violet-500/10'
+                                : 'border-[var(--ds-border-default)] bg-[var(--ds-bg-surface)] hover:bg-[var(--ds-bg-hover)]'
+                            } ${saving ? 'opacity-60' : ''}`}
+                          >
+                            <div className="flex items-center gap-2.5">
+                              <div
+                                className={`flex size-4 shrink-0 items-center justify-center rounded border transition ${
+                                  isSelected
+                                    ? 'border-violet-500 bg-violet-500'
+                                    : 'border-[var(--ds-border-default)] bg-[var(--ds-bg-surface)]'
+                                }`}
+                              >
+                                {isSelected && <Check size={10} className="text-white" />}
+                              </div>
+                              <div className="text-left">
+                                <div className="text-xs font-medium text-[var(--ds-text-primary)]">{model.name}</div>
+                                <div className="text-[10px] text-[var(--ds-text-muted)]">{model.provider}</div>
+                              </div>
+                            </div>
+                            <code className="shrink-0 rounded bg-[var(--ds-bg-hover)] px-1.5 py-0.5 text-[10px] text-[var(--ds-text-muted)]">
+                              {model.id}
+                            </code>
+                          </button>
+                        );
+                      })}
+                    {models.length > 0 && modelSearch && (
+                      <p className="pt-1 text-center text-[10px] text-[var(--ds-text-muted)]">
+                        {models.filter((m) => {
+                          const q = modelSearch.toLowerCase();
+                          return m.name.toLowerCase().includes(q) || m.id.toLowerCase().includes(q) || m.provider.toLowerCase().includes(q);
+                        }).length}{' '}
+                        de {models.length} modelos
+                      </p>
+                    )}
+                  </div>
+                )}
               </div>
             )}
           </div>
