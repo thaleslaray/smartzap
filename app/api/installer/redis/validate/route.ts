@@ -93,6 +93,14 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     console.error('[installer/redis/validate] Erro:', error);
 
+    // Timeout do fetchWithTimeout
+    if (error instanceof Error && error.name === 'AbortError') {
+      return NextResponse.json(
+        { error: 'Timeout ao conectar ao Redis (8s). Verifique se a URL está correta e acessível.' },
+        { status: 408 }
+      )
+    }
+
     // Erro de rede pode indicar URL inválida
     if (error instanceof TypeError && error.message.includes('fetch')) {
       return NextResponse.json(

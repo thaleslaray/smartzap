@@ -34,6 +34,12 @@ export async function POST(req: NextRequest) {
       // Se não conseguir decodificar o JWT, tenta com o fallback mesmo assim
     }
 
+    // Validar que o URL é do domínio Upstash (previne SSRF via JWT manipulado)
+    const isUpstashDomain = /^https:\/\/[a-z0-9][a-z0-9-]*\.upstash\.io$/i.test(qstashBaseUrl)
+    if (!isUpstashDomain) {
+      qstashBaseUrl = 'https://qstash.upstash.io' // fallback seguro
+    }
+
     // Valida o token no servidor correto para a região do usuário
     const qstashRes = await fetch(`${qstashBaseUrl}/v2/schedules`, {
       method: 'GET',
