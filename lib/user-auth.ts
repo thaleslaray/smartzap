@@ -597,16 +597,11 @@ async function clearFailedAttempts(): Promise<void> {
 // ============================================================================
 
 /**
- * Password is managed via MASTER_PASSWORD environment variable in Vercel.
+ * A senha é gerenciada pela variável MASTER_PASSWORD no Vercel.
+ * Use texto simples (ex: "minhaSenha123") — sem hash, sem aspas extras.
  *
- * ACEITA DOIS FORMATOS:
- * - Texto puro: "minhaSenha123" (recomendado - mais simples)
- * - Hash SHA-256: 64 caracteres hex (retrocompatível com instalações antigas)
+ * Nota: por retrocompatibilidade, o sistema ainda aceita hashes SHA-256 de
+ * instalações antigas, mas novas instalações devem usar texto puro.
  *
- * COMO RESETAR A SENHA:
- * 1. Vá em Vercel Dashboard → Settings → Environment Variables
- * 2. Edite MASTER_PASSWORD e coloque sua nova senha (ex: "novaSenha456")
- * 3. Clique em Save
- * 4. Vá em Deployments → clique nos 3 pontos do último deploy → Redeploy
- * 5. Pronto! Faça login com a nova senha
+ * Para resetar: Vercel → Settings → Environment Variables → edite MASTER_PASSWORD → Redeploy.
  */

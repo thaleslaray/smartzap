@@ -4,6 +4,8 @@ import React from 'react';
 import { Search, Filter } from 'lucide-react';
 import { ContactStatus, StatusOption } from './types';
 
+export const NO_TAGS_FILTER = '__NO_TAGS__'
+
 export interface ContactFiltersProps {
   // Search
   searchTerm: string;
@@ -91,6 +93,7 @@ export const ContactFilters: React.FC<ContactFiltersProps> = ({
           aria-label="Filtrar contatos por tag"
         >
           <option value="ALL">Todas Tags</option>
+          <option value={NO_TAGS_FILTER}>Sem tags</option>
           {tags.map(tag => (
             <option key={tag} value={tag}>{tag}</option>
           ))}

@@ -3,8 +3,9 @@ import { getContactsInitialData } from './actions'
 import { ContactsClientWrapper } from './ContactsClientWrapper'
 import { ContactsSkeleton } from '@/components/features/contacts/ContactsSkeleton'
 
-// ISR: revalida a cada 60 segundos
-export const revalidate = 60
+// Força renderização dinâmica - contatos com supressão calculada precisam de dados frescos
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
 
 async function ContactsWithData() {
   const initialData = await getContactsInitialData()

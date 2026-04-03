@@ -43,6 +43,19 @@ export const VALIDATION = {
 } as const;
 
 // =============================================================================
+// TIPOS DE ERRO (para mensagens específicas no ErrorView)
+// =============================================================================
+
+export type InstallErrorType =
+  | 'vercel_token'
+  | 'supabase_pat'
+  | 'qstash_token'
+  | 'redis_url'
+  | 'redis_token'
+  | 'network'
+  | 'unknown';
+
+// =============================================================================
 // DADOS COLETADOS (sem mudanças)
 // =============================================================================
 
@@ -85,13 +98,42 @@ export function isValidEmail(email: string): boolean {
   return emailRegex.test(email);
 }
 
+/**
+ * Normaliza tokens copiados pelo aluno.
+ * Remove espaços e aspas extras (simples, duplas ou backtick) que ficam quando
+ * o token é copiado de um arquivo .env ou documentação — ex: QSTASH_TOKEN="eyJ..."
+ */
+export function normalizeToken(value: string): string {
+  return value.trim().replace(/^["'`]|["'`]$/g, '');
+}
+
 /** Funções que validam se um step está completo */
 export const stepValidators: Record<InstallStep, (data: InstallData) => boolean> = {
-  1: (data) => Boolean(data.name && isValidEmail(data.email) && data.password),
-  2: (data) => Boolean(data.vercelToken),
-  3: (data) => Boolean(data.supabasePat),
-  4: (data) => Boolean(data.qstashToken),
-  5: (data) => Boolean(data.redisRestUrl && data.redisRestToken),
+  1: (data) => {
+    const name = data.name?.trim() ?? '';
+    const email = data.email?.trim() ?? '';
+    const password = data.password?.trim() ?? '';
+    return Boolean(name.length >= VALIDATION.NAME_MIN_LENGTH && isValidEmail(email) && password.length >= VALIDATION.PASSWORD_MIN_LENGTH);
+  },
+  2: (data) => {
+    const token = normalizeToken(data.vercelToken ?? '');
+    return token.length >= VALIDATION.VERCEL_TOKEN_MIN_LENGTH;
+  },
+  3: (data) => {
+    const pat = normalizeToken(data.supabasePat ?? '');
+    return pat.startsWith(VALIDATION.SUPABASE_PAT_PREFIX) && pat.length >= VALIDATION.SUPABASE_PAT_MIN_LENGTH;
+  },
+  4: (data) => {
+    const token = normalizeToken(data.qstashToken ?? '');
+    return token.length >= VALIDATION.QSTASH_TOKEN_MIN_LENGTH;
+  },
+  5: (data) => {
+    const url = data.redisRestUrl?.trim() ?? '';
+    const token = normalizeToken(data.redisRestToken ?? '');
+    return /^https:\/\/[a-z0-9][a-z0-9-]*\.upstash\.io\/?$/i.test(url)
+      && token.length >= VALIDATION.REDIS_TOKEN_MIN_LENGTH
+      && /^[A-Za-z0-9_=+/-]+$/.test(token);
+  },
 };
 
 /** Campos requeridos por step (para mensagens de erro) */
@@ -127,6 +169,7 @@ export interface ErrorState {
   data: InstallData;           // ✅ Mantém data para retry
   returnToStep: InstallStep;
   error: string;
+  errorType?: InstallErrorType;
   errorDetails?: string;
 }
 
@@ -153,7 +196,7 @@ export type InstallAction =
   | { type: 'SUBMIT_STEP'; data: Partial<InstallData> }  // ✅ Atômico: update + next
   | { type: 'START_PROVISIONING' }
   | { type: 'PROGRESS'; progress: number; title: string; subtitle: string }
-  | { type: 'ERROR'; returnToStep: InstallStep; error: string; errorDetails?: string }
+  | { type: 'ERROR'; returnToStep: InstallStep; error: string; errorType?: InstallErrorType; errorDetails?: string }
   | { type: 'COMPLETE' }
   | { type: 'RETRY' }
   | { type: 'RESET' };  // ✅ Recomeça instalação do zero
@@ -176,10 +219,11 @@ export const actions = {
     title,
     subtitle,
   }),
-  error: (error: string, returnToStep: InstallStep, errorDetails?: string): InstallAction => ({
+  error: (error: string, returnToStep: InstallStep, errorType?: InstallErrorType, errorDetails?: string): InstallAction => ({
     type: 'ERROR',
     error,
     returnToStep,
+    errorType,
     errorDetails,
   }),
   complete: (): InstallAction => ({ type: 'COMPLETE' }),
@@ -194,7 +238,7 @@ export const actions = {
 
 export type ProvisionStreamEvent =
   | { type: 'progress'; progress: number; title: string; subtitle: string }
-  | { type: 'error'; error: string; returnToStep: InstallStep; errorDetails?: string }
+  | { type: 'error'; error: string; returnToStep: InstallStep; errorType?: InstallErrorType; errorDetails?: string }
   | { type: 'complete' };
 
 // Type guards para ProvisionStreamEvent
@@ -202,7 +246,7 @@ export function isProgressEvent(e: ProvisionStreamEvent): e is { type: 'progress
   return e.type === 'progress';
 }
 
-export function isErrorEvent(e: ProvisionStreamEvent): e is { type: 'error'; error: string; returnToStep: InstallStep; errorDetails?: string } {
+export function isErrorEvent(e: ProvisionStreamEvent): e is { type: 'error'; error: string; returnToStep: InstallStep; errorType?: InstallErrorType; errorDetails?: string } {
   return e.type === 'error';
 }
 

@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
 import {
   DropdownMenu,
@@ -9,7 +10,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { Braces, Calendar as CalendarIcon, Eye, FolderIcon, Layers, MessageSquare, Plus, RefreshCw, Save, Sparkles, Users, Wand2 } from 'lucide-react'
+import { Braces, Calendar as CalendarIcon, Check, Eye, FolderIcon, Layers, MessageSquare, Plus, RefreshCw, Save, Search, Sparkles, Users, Wand2 } from 'lucide-react'
 import { CustomFieldsSheet } from '@/components/features/contacts/CustomFieldsSheet'
 import {
   Sheet,
@@ -23,10 +24,13 @@ import { ContactQuickEditModal } from '@/components/features/contacts/ContactQui
 import { Calendar } from '@/components/ui/calendar'
 import DateTimePicker from '@/components/ui/date-time-picker'
 import { ptBRLight as ptBR } from '@/lib/locale-pt-br-light'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
 import { useCampaignNewController, steps, formatDateLabel, parsePickerDate } from '@/hooks/useCampaignNew'
 
 export default function CampaignsNewRealPage() {
   const ctrl = useCampaignNewController()
+  const [tagSearchOpen, setTagSearchOpen] = useState(false)
 
   return (
     <div className="space-y-6">
@@ -801,9 +805,54 @@ export default function CampaignsNewRealPage() {
                       </div>
                       <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-3">
                         <div>
-                          <p className="text-xs uppercase tracking-widest text-[var(--ds-text-muted)]">Tags</p>
+                          <div className="flex items-center justify-between">
+                            <p className="text-xs uppercase tracking-widest text-[var(--ds-text-muted)]">Tags</p>
+                            {ctrl.allTags.length > 0 && (
+                              <Popover open={tagSearchOpen} onOpenChange={setTagSearchOpen}>
+                                <PopoverTrigger asChild>
+                                  <button
+                                    type="button"
+                                    className="flex items-center gap-1 rounded-md border border-[var(--ds-border-default)] bg-[var(--ds-bg-elevated)] px-2 py-1 text-xs text-[var(--ds-text-secondary)] hover:bg-[var(--ds-bg-elevated-hover)]"
+                                  >
+                                    <Search className="size-3" />
+                                    Buscar tag
+                                  </button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-56 p-0" align="start">
+                                  <Command>
+                                    <CommandInput placeholder="Buscar tag..." />
+                                    <CommandList>
+                                      <CommandEmpty>Nenhuma tag encontrada.</CommandEmpty>
+                                      <CommandGroup>
+                                        {ctrl.allTags.map((item) => {
+                                          const active = ctrl.selectedTags.includes(item.tag)
+                                          return (
+                                            <CommandItem
+                                              key={item.tag}
+                                              value={item.tag}
+                                              onSelect={() => {
+                                                ctrl.toggleSelection(item.tag, ctrl.selectedTags, ctrl.setSelectedTags)
+                                                setTagSearchOpen(false)
+                                              }}
+                                            >
+                                              <span className="flex-1">{item.tag}</span>
+                                              <span className="text-xs text-[var(--ds-text-muted)]">{item.count}</span>
+                                              {active && <Check className="ml-1 size-3 text-emerald-500" />}
+                                            </CommandItem>
+                                          )
+                                        })}
+                                      </CommandGroup>
+                                    </CommandList>
+                                  </Command>
+                                </PopoverContent>
+                              </Popover>
+                            )}
+                          </div>
                           <div className="mt-3 flex flex-wrap gap-2">
-                            {ctrl.tagChips.length === 0 && (
+                            {ctrl.tagCountsQuery.isLoading && (
+                              <span className="text-xs text-[var(--ds-text-muted)]">Carregando tags...</span>
+                            )}
+                            {!ctrl.tagCountsQuery.isLoading && ctrl.tagChips.length === 0 && (
                               <span className="text-xs text-[var(--ds-text-muted)]">Sem tags cadastradas</span>
                             )}
                             {ctrl.tagChips.map((tag) => {
@@ -827,6 +876,24 @@ export default function CampaignsNewRealPage() {
                                 </button>
                               )
                             })}
+                            {ctrl.selectedTags
+                              .filter((tag) => !ctrl.tagChips.includes(tag))
+                              .map((tag) => {
+                                const count = ctrl.tagCounts[tag]
+                                return (
+                                  <button
+                                    key={tag}
+                                    type="button"
+                                    onClick={() => ctrl.toggleSelection(tag, ctrl.selectedTags, ctrl.setSelectedTags)}
+                                    className="rounded-full border border-emerald-600 dark:border-emerald-400/40 bg-emerald-100 dark:bg-emerald-500/10 px-3 py-1 text-xs text-emerald-700 dark:text-emerald-100"
+                                  >
+                                    <span>{tag}</span>
+                                    {typeof count === 'number' && (
+                                      <sup className="ml-1 text-[8px] leading-none text-amber-700 dark:text-amber-300">{count}</sup>
+                                    )}
+                                  </button>
+                                )
+                              })}
                           </div>
                         </div>
                         <div>

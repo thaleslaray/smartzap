@@ -288,6 +288,39 @@ export const useContactsController = (initialData?: ContactsInitialData) => {
     },
   });
 
+  const bulkUpdateTagsMutation = useMutation({
+    mutationFn: ({
+      ids,
+      tagsToAdd,
+      tagsToRemove,
+    }: {
+      ids: string[]
+      tagsToAdd: string[]
+      tagsToRemove: string[]
+    }) => contactService.bulkUpdateTags(ids, tagsToAdd, tagsToRemove),
+    onSuccess: () => {
+      invalidateContacts(queryClient)
+      clearSelection()
+      toast.success('Tags atualizadas com sucesso')
+    },
+    onError: (err: Error) => {
+      toast.error(err.message)
+    },
+  })
+
+  const bulkUpdateStatusMutation = useMutation({
+    mutationFn: ({ ids, status }: { ids: string[]; status: ContactStatus }) =>
+      contactService.bulkUpdateStatus(ids, status),
+    onSuccess: () => {
+      invalidateContacts(queryClient)
+      clearSelection()
+      toast.success('Status atualizado com sucesso')
+    },
+    onError: (err: Error) => {
+      toast.error(err.message)
+    },
+  })
+
   const importMutation = useMutation({
     mutationFn: contactService.import,
     onSuccess: (result) => {
@@ -315,6 +348,18 @@ export const useContactsController = (initialData?: ContactsInitialData) => {
     },
     onError: (error: Error) => {
       toast.error(error.message || 'Erro ao importar contatos');
+    }
+  });
+
+  // Unsuppress mutation - remove supressão global de um telefone
+  const unsuppressMutation = useMutation({
+    mutationFn: contactService.unsuppress,
+    onSuccess: () => {
+      invalidateContacts(queryClient);
+      toast.success('Supressão removida! O contato pode receber mensagens novamente.');
+    },
+    onError: (error: any) => {
+      toast.error(error.message || 'Erro ao remover supressão');
     }
   });
 
@@ -433,6 +478,10 @@ export const useContactsController = (initialData?: ContactsInitialData) => {
     setDeleteTarget(null);
   }, []);
 
+  const handleUnsuppress = useCallback((phone: string) => {
+    unsuppressMutation.mutate(phone);
+  }, [unsuppressMutation]);
+
   return {
     // Data
     contacts,
@@ -490,6 +539,19 @@ export const useContactsController = (initialData?: ContactsInitialData) => {
     onImportFile: importFromFileMutation.mutateAsync,
     isImporting: importMutation.isPending || importFromFileMutation.isPending,
     isDeleting: deleteMutation.isPending || deleteManyMutation.isPending,
+    onBulkUpdateTags: (tagsToAdd: string[], tagsToRemove: string[], onDone?: () => void) =>
+      bulkUpdateTagsMutation.mutate(
+        { ids: Array.from(selectedIds), tagsToAdd, tagsToRemove },
+        { onSuccess: onDone }
+      ),
+    isBulkUpdatingTags: bulkUpdateTagsMutation.isPending,
+    onBulkUpdateStatus: (status: ContactStatus) =>
+      bulkUpdateStatusMutation.mutate({
+        ids: Array.from(selectedIds),
+        status,
+      }),
+    isBulkUpdatingStatus: bulkUpdateStatusMutation.isPending,
+    onUnsuppress: handleUnsuppress,
 
     // Import report
     importReport,

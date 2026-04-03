@@ -5,7 +5,7 @@ import { ChevronDown } from 'lucide-react';
 import { TokenInput } from '../TokenInput';
 import { ValidatingOverlay } from '../ValidatingOverlay';
 import { SuccessCheckmark } from '../SuccessCheckmark';
-import { VALIDATION } from '@/lib/installer/types';
+import { VALIDATION, normalizeToken } from '@/lib/installer/types';
 import type { FormProps } from './types';
 
 /**
@@ -22,7 +22,8 @@ export function RedisForm({ data, onComplete, onBack, showBack }: FormProps) {
   const validateInFlightRef = useRef(false);
 
   const isValidUrl = restUrl.trim().startsWith('https://') && restUrl.trim().includes('.upstash.io');
-  const isValidToken = restToken.trim().length >= VALIDATION.REDIS_TOKEN_MIN_LENGTH && /^[A-Za-z0-9_=-]+$/.test(restToken.trim());
+  const normalizedToken = normalizeToken(restToken);
+  const isValidToken = normalizedToken.length >= VALIDATION.REDIS_TOKEN_MIN_LENGTH && /^[A-Za-z0-9_=-]+$/.test(normalizedToken);
   const canValidate = isValidUrl && isValidToken;
 
   const handleValidate = async () => {
@@ -48,7 +49,7 @@ export function RedisForm({ data, onComplete, onBack, showBack }: FormProps) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           restUrl: restUrl.trim(),
-          restToken: restToken.trim(),
+          restToken: normalizedToken,
         }),
       });
 
@@ -82,7 +83,7 @@ export function RedisForm({ data, onComplete, onBack, showBack }: FormProps) {
   const handleSuccessComplete = () => {
     onComplete({
       redisRestUrl: restUrl.trim(),
-      redisRestToken: restToken.trim(),
+      redisRestToken: normalizedToken,
     });
   };
 

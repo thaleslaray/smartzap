@@ -5,7 +5,7 @@ import { ChevronDown } from 'lucide-react';
 import { TokenInput } from '../TokenInput';
 import { ValidatingOverlay } from '../ValidatingOverlay';
 import { SuccessCheckmark } from '../SuccessCheckmark';
-import { VALIDATION } from '@/lib/installer/types';
+import { VALIDATION, normalizeToken } from '@/lib/installer/types';
 import type { FormProps } from './types';
 
 /**
@@ -18,12 +18,13 @@ export function QStashForm({ data, onComplete, onBack, showBack }: FormProps) {
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const normalized = normalizeToken(token);
   const isValidFormat =
-    token.trim().startsWith('eyJ') ||
-    token.trim().startsWith('qstash_') ||
-    token.trim().split('.').length === 3;
+    normalized.startsWith('eyJ') ||
+    normalized.startsWith('qstash_') ||
+    normalized.split('.').length === 3;
 
-  const canValidate = isValidFormat && token.trim().length >= VALIDATION.QSTASH_TOKEN_MIN_LENGTH;
+  const canValidate = isValidFormat && normalized.length >= VALIDATION.QSTASH_TOKEN_MIN_LENGTH;
 
   const handleValidate = async () => {
     if (!canValidate) {
@@ -42,7 +43,7 @@ export function QStashForm({ data, onComplete, onBack, showBack }: FormProps) {
       const res = await fetch('/api/installer/qstash/validate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token: token.trim() }),
+        body: JSON.stringify({ token: normalized }),
       });
 
       const result = await res.json();
@@ -71,7 +72,7 @@ export function QStashForm({ data, onComplete, onBack, showBack }: FormProps) {
   };
 
   const handleSuccessComplete = () => {
-    onComplete({ qstashToken: token.trim() });
+    onComplete({ qstashToken: normalized });
   };
 
   const handleAutoSubmit = () => {
@@ -159,6 +160,17 @@ export function QStashForm({ data, onComplete, onBack, showBack }: FormProps) {
               <span className="text-[var(--br-dust-gray)]">(sem aspas)</span>
             </li>
           </ol>
+          {/* Formatos válidos do token */}
+          <div className="mt-2 pt-2 border-t border-[var(--br-dust-gray)]/20">
+            <p className="text-xs font-mono text-[var(--br-dust-gray)] mb-1">Formatos válidos do QSTASH_TOKEN:</p>
+            <ul className="text-xs font-mono text-[var(--br-muted-cyan)] space-y-0.5 list-none">
+              <li><span className="text-[var(--br-neon-orange)]">eyJ</span>xxxxxxxxx... (JWT — mais comum)</li>
+              <li><span className="text-[var(--br-neon-orange)]">qstash_</span>xxxxxxxxx... (prefixo)</li>
+            </ul>
+            <p className="text-xs font-mono text-[var(--br-dust-gray)] mt-1">
+              Copie exatamente como aparece, sem aspas.
+            </p>
+          </div>
         </div>
       </details>
       )}
