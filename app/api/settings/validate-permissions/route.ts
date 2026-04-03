@@ -176,10 +176,6 @@ function buildMissingScopesSteps(missing: string[]): string[] {
  * - appSecret: Meta App Secret (se não fornecido, busca do banco)
  */
 export async function POST(request: NextRequest) {
-  // Nota: Esta API é chamada pelo frontend durante onboarding/configuração.
-  // O usuário já está autenticado no dashboard via session, então não precisa de API key.
-  // A proteção vem do fato de que só funciona com credenciais válidas no banco.
-
   try {
     const body = await request.json().catch(() => ({}))
 

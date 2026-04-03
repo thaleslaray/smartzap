@@ -220,6 +220,22 @@ const ContactTableRow = React.memo(
                   {contact.suppressionSource ? `Fonte: ${contact.suppressionSource}` : 'Fonte: —'}
                 </div>
               </div>
+              {onUnsuppress && contact.suppressionReason && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      className="shrink-0 text-red-400 hover:text-red-300 hover:bg-red-500/20"
+                      onClick={() => onUnsuppress(contact.phone)}
+                      aria-label="Remover supressão"
+                    >
+                      <ShieldOff size={14} aria-hidden="true" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent><p>Remover supressão</p></TooltipContent>
+                </Tooltip>
+              )}
             </div>
           </td>
         )}
