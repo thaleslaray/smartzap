@@ -1,9 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import {
-  precheckContactForTemplate,
-  buildMetaTemplatePayload,
-  renderTemplatePreviewText,
-} from '@/lib/whatsapp/template-contract'
+import { precheckContactForTemplate } from '@/lib/whatsapp/template-contract'
+import { buildMetaTemplatePayload, renderTemplatePreviewText } from '@/lib/whatsapp/template-payload'
 
 const baseTemplate = {
   id: 'tpl_1',
