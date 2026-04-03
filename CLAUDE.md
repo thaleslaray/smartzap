@@ -84,7 +84,7 @@ lib/                    # Business logic & utilities
   builder/              # Workflow executor
   whatsapp/             # WhatsApp API integration
 types.ts                # All TypeScript interfaces & enums
-supabase/migrations/    # SQL migrations (3 ativas + _archive/ com histórico)
+supabase/migrations/    # SQL migrations (4 ativas + _archive/ com histórico)
 ```
 
 ### Provider Stack (app/providers.tsx)
