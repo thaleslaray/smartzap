@@ -1,6 +1,6 @@
 import "server-only";
 
-import { buildMetaTemplatePayload } from "@/lib/whatsapp/template-contract";
+import { buildMetaTemplatePayload } from "@/lib/whatsapp/template-payload";
 import { withStepLogging, type StepInput } from "../step-handler";
 import {
   getCredentials,
