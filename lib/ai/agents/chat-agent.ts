@@ -351,10 +351,11 @@ export async function processChatAgent(
   // Get model configuration - routes through AI Gateway via OIDC
   const modelId = agent.model || DEFAULT_MODEL_ID
 
-  const baseModel = gateway(normalizeToGatewayModelId(modelId))
+  const gatewayModelId = normalizeToGatewayModelId(modelId)
+  const baseModel = gateway(gatewayModelId)
   const model = await withDevTools(baseModel, { name: `agente:${agent.name}` })
 
-  console.log(`[chat-agent] Using gateway model: ${modelId}`)
+  console.log(`[chat-agent] Using gateway model: ${gatewayModelId}`)
 
   // Check if agent has indexed content in pgvector
   let hasKnowledgeBase = false

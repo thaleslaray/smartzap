@@ -11,7 +11,6 @@
  */
 
 import { embed, embedMany } from 'ai'
-import { getAiGatewayConfig } from './ai-center-config'
 
 // =============================================================================
 // Types
@@ -94,42 +93,21 @@ const AI_GATEWAY_BASE_URL = 'https://ai-gateway.vercel.sh/v1'
 // =============================================================================
 
 /**
- * Cria o modelo de embedding apropriado baseado no provider configurado
- * Retorna um modelo compatível com as funções embed/embedMany do AI SDK
- *
- * Quando AI Gateway está habilitado, usa o Gateway para roteamento inteligente.
+ * Cria o modelo de embedding via AI Gateway (OIDC).
+ * Suporta Google e OpenAI. Voyage e Cohere não são suportados.
  */
 async function getEmbeddingModel(config: EmbeddingConfig) {
-  // Verifica se AI Gateway está habilitado
-  const gatewayConfig = await getAiGatewayConfig()
-
   if (config.provider === 'google' || config.provider === 'openai') {
-    // Usa AI Gateway para embedding
     const { createOpenAI } = await import('@ai-sdk/openai')
 
     const gatewayModelId = `${config.provider}/${config.model}`
 
-    // Headers para o Gateway
-    const headers: Record<string, string> = {}
-
-    // BYOK: passa a chave do provider se configurado
-    if (gatewayConfig.useBYOK && config.apiKey) {
-      const byokHeaderMap: Record<EmbeddingProvider, string> = {
-        google: 'x-google-api-key',
-        openai: 'x-openai-api-key',
-        voyage: 'x-voyage-api-key',
-        cohere: 'x-cohere-api-key',
-      }
-      headers[byokHeaderMap[config.provider]] = config.apiKey
-    }
-
     const openai = createOpenAI({
       apiKey: process.env.VERCEL_OIDC_TOKEN || process.env.AI_GATEWAY_API_KEY || 'dummy',
       baseURL: AI_GATEWAY_BASE_URL,
-      headers,
     })
 
-    console.log(`[embeddings] AI Gateway enabled: ${gatewayModelId}`)
+    console.log(`[embeddings] Gateway model: ${gatewayModelId}`)
 
     return openai.embedding(gatewayModelId)
   }
