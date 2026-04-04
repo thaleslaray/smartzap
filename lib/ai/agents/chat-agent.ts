@@ -306,9 +306,8 @@ export async function processChatAgent(
   const startTime = Date.now()
 
   // Dynamic imports - required for background execution context
-  const { generateText, tool, stepCountIs } = await import('ai')
+  const { generateText, tool, stepCountIs, gateway } = await import('ai')
   const { withDevTools } = await import('@/lib/ai/devtools')
-  const { createLanguageModel, getProviderFromModel } = await import('@/lib/ai/provider-factory')
   const {
     findRelevantContent,
     hasIndexedContent,
@@ -349,31 +348,13 @@ export async function processChatAgent(
     mem0Enabled = false
   }
 
-  // Get model configuration - supports Google, OpenAI, Anthropic
+  // Get model configuration - routes through AI Gateway via OIDC
   const modelId = agent.model || DEFAULT_MODEL_ID
-  const provider = getProviderFromModel(modelId)
 
-  let baseModel
-  let apiKey: string
-  let usingGateway = false
-  let allApiKeys: Partial<Record<'google' | 'openai' | 'anthropic', string>> | undefined
-  try {
-    const result = await createLanguageModel(modelId)
-    baseModel = result.model
-    apiKey = result.apiKey
-    usingGateway = result.usingGateway
-    allApiKeys = result.allApiKeys
-  } catch (err) {
-    return {
-      success: false,
-      error: err instanceof Error ? err.message : 'Erro ao criar modelo de IA',
-      latencyMs: Date.now() - startTime,
-    }
-  }
-
+  const baseModel = gateway(modelId)
   const model = await withDevTools(baseModel, { name: `agente:${agent.name}` })
 
-  console.log(`[chat-agent] Using provider: ${provider}, model: ${modelId}`)
+  console.log(`[chat-agent] Using gateway model: ${modelId}`)
 
   // Check if agent has indexed content in pgvector
   let hasKnowledgeBase = false
@@ -468,7 +449,7 @@ export async function processChatAgent(
           const ragStartTime = Date.now()
 
           // Build configs
-          const embeddingConfig = buildEmbeddingConfigFromAgent(agent, apiKey)
+          const embeddingConfig = buildEmbeddingConfigFromAgent(agent)
           const rerankConfig = await buildRerankConfigFromAgent(agent)
 
           // Search
@@ -632,37 +613,6 @@ export async function processChatAgent(
     console.log(`[chat-agent] 🚀 Calling generateText...`)
     const startGenerate = Date.now()
 
-    // Build providerOptions for AI Gateway (BYOK-only, no system credential fallback)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let providerOptions: Record<string, any> | undefined
-    if (usingGateway && allApiKeys) {
-      // Build BYOK config - only include providers that have keys configured
-      const byokConfig: Record<string, Array<{ apiKey: string }>> = {}
-      const availableProviders: string[] = []
-
-      for (const [prov, key] of Object.entries(allApiKeys)) {
-        if (key) {
-          byokConfig[prov] = [{ apiKey: key }]
-          availableProviders.push(prov)
-        }
-      }
-
-      if (availableProviders.length > 0) {
-        providerOptions = {
-          gateway: {
-            // 'only' restricts to BYOK providers - NO system credential fallback
-            only: availableProviders,
-            // 'order' defines fallback sequence: Google → OpenAI → Anthropic
-            order: ['google', 'openai', 'anthropic'].filter(p => availableProviders.includes(p)),
-            // 'byok' passes all configured API keys
-            byok: byokConfig,
-          },
-        }
-        console.log(`[chat-agent] 🔑 AI Gateway BYOK enabled for: ${availableProviders.join(', ')}`)
-        console.log(`[chat-agent] 🔄 Fallback order: ${providerOptions.gateway.order.join(' → ')}`)
-      }
-    }
-
     // =======================================================================
     // RETRY LOOP: Tenta novamente se LLM não chamar respond tool
     // Issue #8992: toolChoice: 'required' não é garantia, LLM pode retornar texto puro
@@ -715,8 +665,6 @@ export async function processChatAgent(
           temperature: agent.temperature ?? DEFAULT_TEMPERATURE,
           maxOutputTokens: agent.max_tokens ?? DEFAULT_MAX_TOKENS,
           abortSignal: abortController.signal,
-          // Pass providerOptions only when using AI Gateway
-          ...(providerOptions && { providerOptions }),
         })
 
         clearTimeout(timeoutId) // Limpa timeout se completou
@@ -809,7 +757,6 @@ export async function processChatAgent(
     console.error('[chat-agent] ❌ Full error object:', err)
     console.error('[chat-agent] ❌ Context:', {
       modelId,
-      provider,
       agentId: agent.id,
       agentName: agent.name,
       hasKnowledgeBase,

@@ -1,16 +1,10 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Route, Info, Loader2, Check, ChevronDown, Search, Key, AlertCircle } from 'lucide-react';
+import { Route, Info, Loader2, Check, ChevronDown, Search, Key, ExternalLink } from 'lucide-react';
 import { toast } from 'sonner';
 import { DEFAULT_AI_GATEWAY, type AiGatewayConfig } from '@/lib/ai/ai-center-defaults';
 import type { GatewayModel } from '@/app/api/ai/gateway-models/route';
-
-type ProviderKeyStatus = {
-  isConfigured: boolean;
-  source: 'database' | 'env' | 'none';
-  tokenPreview?: string | null;
-};
 
 /**
  * AIGatewayPanel - Configuração do Vercel AI Gateway
@@ -78,7 +72,6 @@ export function AIGatewayPanel() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [config, setConfig] = useState<AiGatewayConfig>(DEFAULT_AI_GATEWAY);
-  const [providerStatuses, setProviderStatuses] = useState<Record<string, ProviderKeyStatus>>({});
   const [showPrimaryConfig, setShowPrimaryConfig] = useState(false);
   const [showFallbackConfig, setShowFallbackConfig] = useState(false);
   const [models, setModels] = useState<GatewayModel[]>([]);
@@ -93,7 +86,6 @@ export function AIGatewayPanel() {
       const res = await fetch('/api/settings/ai');
       const data = await res.json();
       if (data.gateway) setConfig(data.gateway);
-      if (data.providers) setProviderStatuses(data.providers);
     } catch (error) {
       console.error('Error fetching AI Gateway config:', error);
     } finally {
@@ -395,40 +387,21 @@ export function AIGatewayPanel() {
             </button>
           </div>
 
-          {/* Status das chaves quando BYOK está ativo */}
+          {/* Link ao dashboard BYOK quando ativo */}
           {config.useBYOK && (
-            <div className="mt-3 border-t border-[var(--ds-border-subtle)] pt-3 space-y-2">
-              {[
-                { id: 'google', name: 'Google Gemini', dotColor: 'bg-blue-400' },
-                { id: 'openai', name: 'OpenAI', dotColor: 'bg-emerald-400' },
-                { id: 'anthropic', name: 'Anthropic Claude', dotColor: 'bg-amber-400' },
-              ].map(({ id, name, dotColor }) => {
-                const status = providerStatuses[id];
-                const configured = status?.isConfigured ?? false;
-                return (
-                  <div key={id} className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className={`size-1.5 rounded-full ${dotColor}`} />
-                      <span className="text-xs text-[var(--ds-text-secondary)]">{name}</span>
-                    </div>
-                    {configured ? (
-                      <div className="flex items-center gap-1 text-emerald-400">
-                        <Check size={11} />
-                        <span className="text-[11px]">
-                          {status.tokenPreview ? `···${status.tokenPreview}` : 'Configurada'}
-                        </span>
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-1 text-[var(--ds-text-muted)]">
-                        <AlertCircle size={11} />
-                        <span className="text-[11px]">Não configurada</span>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-              <p className="pt-1 text-[11px] text-[var(--ds-text-muted)]">
-                Adicione as chaves na seção <span className="text-[var(--ds-text-secondary)]">Modelo Principal</span> abaixo ↓
+            <div className="mt-3 border-t border-[var(--ds-border-subtle)] pt-3">
+              <p className="text-[11px] text-[var(--ds-text-secondary)]">
+                Adicione suas chaves de API diretamente no{' '}
+                <a
+                  href={`https://vercel.com/${process.env.NEXT_PUBLIC_VERCEL_TEAM ?? 'dashboard'}/${process.env.NEXT_PUBLIC_VERCEL_PROJECT ?? 'project'}/ai-gateway/byok`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-emerald-400 underline hover:text-emerald-300"
+                >
+                  Vercel AI Gateway → BYOK
+                  <ExternalLink size={10} />
+                </a>
+                . O SmartZap as usa automaticamente.
               </p>
             </div>
           )}

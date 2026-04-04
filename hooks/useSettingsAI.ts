@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { AI_PROVIDERS, type AIProvider } from '@/lib/ai/providers'
 import { useDevMode } from '@/components/providers/DevModeProvider'
 import { DEFAULT_MODEL_ID } from '@/lib/ai/model'
@@ -15,20 +15,9 @@ import {
 import { settingsService, type OCRConfig, type OCRProviderType } from '@/services/settingsService'
 import { toast } from 'sonner'
 
-type ProviderStatus = {
-  isConfigured: boolean
-  source: 'database' | 'env' | 'none'
-  tokenPreview?: string | null
-}
-
 type AIConfigResponse = {
   provider: AIProvider
   model: string
-  providers: {
-    google: ProviderStatus
-    openai: ProviderStatus
-    anthropic: ProviderStatus
-  }
   routes: AiRoutesConfig
   prompts: AiPromptsConfig
   fallback: AiFallbackConfig
@@ -45,12 +34,6 @@ const DEFAULT_OCR_CONFIG: OCRConfig = {
   },
 }
 
-const EMPTY_PROVIDER_STATUS: ProviderStatus = {
-  isConfigured: false,
-  source: 'none',
-  tokenPreview: null,
-}
-
 const getProviderConfig = (providerId: AIProvider) =>
   AI_PROVIDERS.find((provider) => provider.id === providerId)
 
@@ -58,8 +41,6 @@ const getProviderLabel = (providerId: AIProvider) =>
   getProviderConfig(providerId)?.name ?? providerId
 
 const getDefaultModelId = (providerId: AIProvider) => {
-  // Para Google, usa a constante DEFAULT_MODEL_ID (Flash)
-  // Para outros providers, usa o primeiro modelo da lista
   if (providerId === 'google') {
     return DEFAULT_MODEL_ID
   }
@@ -94,31 +75,14 @@ const normalizeProviderOrder = (order: AIProvider[]) => {
 export const useSettingsAIController = () => {
   const { isDevMode } = useDevMode()
 
-  const [providerStatuses, setProviderStatuses] = useState<AIConfigResponse['providers']>({
-    google: EMPTY_PROVIDER_STATUS,
-    openai: EMPTY_PROVIDER_STATUS,
-    anthropic: EMPTY_PROVIDER_STATUS,
-  })
   const [provider, setProvider] = useState<AIProvider>('google')
   const [model, setModel] = useState(() => getDefaultModelId('google'))
   const [routes, setRoutes] = useState<AiRoutesConfig>(DEFAULT_AI_ROUTES)
   const [prompts, setPrompts] = useState<AiPromptsConfig>(DEFAULT_AI_PROMPTS)
   const [fallback, setFallback] = useState<AiFallbackConfig>(DEFAULT_AI_FALLBACK)
-  const [inlineKeyProvider, setInlineKeyProvider] = useState<AIProvider | null>(null)
-  const [apiKeyDrafts, setApiKeyDrafts] = useState<Record<AIProvider, string>>({
-    google: '',
-    openai: '',
-    anthropic: '',
-  })
-  const [isSavingKey, setIsSavingKey] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
-
-  // BYOK activation polling
-  const [isActivating, setIsActivating] = useState(false)
-  const [activationPhase, setActivationPhase] = useState<'idle' | 'saving' | 'deploying' | 'ready' | 'error'>('idle')
-  const activationPollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   // OCR State
   const [ocrConfig, setOcrConfig] = useState<OCRConfig>(DEFAULT_OCR_CONFIG)
@@ -129,37 +93,18 @@ export const useSettingsAIController = () => {
   // Collapsible sections
   const [isStrategiesOpen, setIsStrategiesOpen] = useState(false)
 
-  const orderedProviders = useMemo(() => {
-    const allProviders = normalizeProviderOrder(fallback.order)
-    // Só mostra OpenAI e Anthropic no modo desenvolvedor
-    if (!isDevMode) {
-      return allProviders.filter(p => p === 'google')
-    }
-    return allProviders
-  }, [fallback.order, isDevMode])
-  const configuredProvidersCount = useMemo(() => {
-    return Object.values(providerStatuses).filter(s => s.isConfigured).length
-  }, [providerStatuses])
-  const hasAnyKey = configuredProvidersCount > 0
-  const hasSecondaryKey = useMemo(() => {
-    return Object.entries(providerStatuses).some(([providerId, status]) => {
-      return providerId !== provider && status.isConfigured
-    })
-  }, [providerStatuses, provider])
   const primaryProviderLabel = useMemo(() => getProviderLabel(provider), [provider])
   const primaryModelLabel = useMemo(
     () => (model ? getModelLabel(provider, model) : '—'),
     [provider, model]
   )
-  const primaryProviderStatus = providerStatuses[provider] ?? EMPTY_PROVIDER_STATUS
-  const primaryProviderConfigured = primaryProviderStatus.isConfigured
 
   const fallbackSummary = useMemo(() => {
-    if (!fallback.enabled || orderedProviders.length === 0) {
+    if (!fallback.enabled || fallback.order.length === 0) {
       return 'Desativado'
     }
-    return orderedProviders.map((item) => getProviderLabel(item)).join(' -> ')
-  }, [fallback.enabled, orderedProviders])
+    return fallback.order.map((item) => getProviderLabel(item)).join(' -> ')
+  }, [fallback.enabled, fallback.order])
 
   const primaryModelOptions = useMemo(
     () => getModelOptions(provider, model),
@@ -196,13 +141,7 @@ export const useSettingsAIController = () => {
         order: normalizedFallbackOrder,
         models: fallbackModels,
       })
-      setProviderStatuses({
-        google: data.providers?.google ?? EMPTY_PROVIDER_STATUS,
-        openai: data.providers?.openai ?? EMPTY_PROVIDER_STATUS,
-        anthropic: data.providers?.anthropic ?? EMPTY_PROVIDER_STATUS,
-      })
 
-      // Load OCR configuration
       if (data.ocr) {
         setOcrConfig(data.ocr)
       }
@@ -220,15 +159,8 @@ export const useSettingsAIController = () => {
     void loadConfig()
   }, [loadConfig])
 
-  useEffect(() => {
-    if (!hasSecondaryKey && fallback.enabled) {
-      setFallback((current) => ({ ...current, enabled: false }))
-    }
-  }, [hasSecondaryKey, fallback.enabled])
-
   const handleProviderSelect = (nextProvider: AIProvider) => {
     setProvider(nextProvider)
-    // Usa o modelo já configurado no fallback (se existir) ou o padrão
     const savedModel = fallback.models?.[nextProvider]
     const nextModel = savedModel || getDefaultModelId(nextProvider)
     setModel(nextModel)
@@ -276,81 +208,6 @@ export const useSettingsAIController = () => {
       setIsSaving(false)
     }
   }
-
-  const handleSaveKey = async (targetProvider: AIProvider) => {
-    const apiKey = apiKeyDrafts[targetProvider].trim()
-    if (!apiKey) {
-      toast.error('Informe a chave de API')
-      return
-    }
-    setIsSavingKey(true)
-    setActivationPhase('saving')
-    try {
-      const result = await settingsService.saveAIConfig({
-        apiKey,
-        apiKeyProvider: targetProvider,
-      }) as { pendingActivation?: boolean; deploymentId?: string }
-
-      setApiKeyDrafts((current) => ({ ...current, [targetProvider]: '' }))
-      setInlineKeyProvider(null)
-
-      if (result?.pendingActivation && result?.deploymentId) {
-        setIsActivating(true)
-        setActivationPhase('deploying')
-        startActivationPolling(result.deploymentId)
-      } else {
-        setActivationPhase('idle')
-        toast.success('Chave atualizada')
-      }
-
-      await loadConfig()
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Erro ao salvar chave'
-      setActivationPhase('error')
-      toast.error(message)
-    } finally {
-      setIsSavingKey(false)
-    }
-  }
-
-  const startActivationPolling = useCallback((deploymentId: string) => {
-    // Limpa polling anterior se existir
-    if (activationPollRef.current) clearInterval(activationPollRef.current)
-
-    activationPollRef.current = setInterval(async () => {
-      try {
-        const res = await fetch(`/api/vercel/deploy-status?deploymentId=${deploymentId}`)
-        if (!res.ok) return
-        const { status } = await res.json() as { status: string }
-
-        if (status === 'READY') {
-          clearInterval(activationPollRef.current!)
-          activationPollRef.current = null
-          setIsActivating(false)
-          setActivationPhase('ready')
-          toast.success('AI Gateway ativado com sucesso!')
-          await loadConfig()
-          // Limpa o estado após 5s para não poluir a UI
-          setTimeout(() => setActivationPhase('idle'), 5000)
-        } else if (status === 'ERROR' || status === 'CANCELED') {
-          clearInterval(activationPollRef.current!)
-          activationPollRef.current = null
-          setIsActivating(false)
-          setActivationPhase('error')
-          toast.error('Falha na ativação do Gateway. Tente salvar a chave novamente.')
-        }
-      } catch {
-        // Silently ignore poll errors
-      }
-    }, 15_000) // Polling a cada 15s
-  }, [loadConfig])
-
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      if (activationPollRef.current) clearInterval(activationPollRef.current)
-    }
-  }, [])
 
   // OCR Handlers
   const handleOcrProviderChange = async (newProvider: OCRProviderType) => {
@@ -431,17 +288,6 @@ export const useSettingsAIController = () => {
     setFallback((current) => ({ ...current, enabled: next }))
   }
 
-  const handleInlineKeyToggle = (providerId: AIProvider) => {
-    setInlineKeyProvider((current) => (current === providerId ? null : providerId))
-  }
-
-  const handleApiKeyDraftChange = (providerId: AIProvider, value: string) => {
-    setApiKeyDrafts((current) => ({
-      ...current,
-      [providerId]: value,
-    }))
-  }
-
   const handlePromptChange = (key: keyof AiPromptsConfig, value: string) => {
     setPrompts((current) => ({
       ...current,
@@ -471,18 +317,9 @@ export const useSettingsAIController = () => {
     // Provider state
     provider,
     model,
-    providerStatuses,
-    orderedProviders,
-    configuredProvidersCount,
-    hasAnyKey,
-    hasSecondaryKey,
     primaryProviderLabel,
     primaryModelLabel,
-    primaryProviderStatus,
-    primaryProviderConfigured,
     primaryModelOptions,
-    inlineKeyProvider,
-    apiKeyDrafts,
 
     // Fallback
     fallback,
@@ -495,9 +332,6 @@ export const useSettingsAIController = () => {
     // Loading & Saving
     isLoading,
     isSaving,
-    isSavingKey,
-    isActivating,
-    activationPhase,
     errorMessage,
 
     // OCR
@@ -515,9 +349,6 @@ export const useSettingsAIController = () => {
     handleFallbackMove,
     handleFallbackToggle,
     handleModelChange,
-    handleInlineKeyToggle,
-    handleApiKeyDraftChange,
-    handleSaveKey,
     handleOcrProviderChange,
     handleOcrGeminiModelChange,
     handleSaveMistralKey,
@@ -533,6 +364,3 @@ export const useSettingsAIController = () => {
     getModelLabel,
   }
 }
-
-// Re-export types needed by the view
-export type { ProviderStatus }

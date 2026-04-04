@@ -488,115 +488,20 @@ function PromptCard({
   )
 }
 
-// ─── Stepper de ativação do AI Gateway ───────────────────────────────────────
-
-type ActivationPhase = 'idle' | 'saving' | 'deploying' | 'ready' | 'error'
-
-const ACTIVATION_STEPS: Array<{
-  key: ActivationPhase
-  label: string
-  activeLabel: string
-}> = [
-  { key: 'saving',    label: 'Chave validada e salva',      activeLabel: 'Validando e salvando...' },
-  { key: 'deploying', label: 'Env var atualizada no Vercel', activeLabel: 'Atualizando Vercel e iniciando redeploy...' },
-  { key: 'ready',     label: 'AI Gateway ativo',            activeLabel: 'Build concluído!' },
-]
-
-const PHASE_ORDER: ActivationPhase[] = ['saving', 'deploying', 'ready']
-
-function GatewayActivationStepper({ phase }: { phase: ActivationPhase }) {
-  const isError = phase === 'error'
-  const currentIndex = PHASE_ORDER.indexOf(phase)
-
-  return (
-    <div className={`mb-4 rounded-2xl border px-4 py-4 ${
-      isError
-        ? 'border-red-500/20 bg-red-500/5'
-        : phase === 'ready'
-          ? 'border-emerald-500/20 bg-emerald-500/5'
-          : 'border-violet-500/20 bg-violet-500/5'
-    }`}>
-      <div className="mb-3 flex items-center gap-2">
-        {isError ? (
-          <span className="size-4 rounded-full border border-red-500/40 bg-red-500/20 flex items-center justify-center text-red-400 text-[10px]">✕</span>
-        ) : phase === 'ready' ? (
-          <span className="size-4 rounded-full border border-emerald-500/40 bg-emerald-500/20 flex items-center justify-center text-emerald-400 text-[10px]">✓</span>
-        ) : (
-          <Loader2 className="size-4 text-violet-400 animate-spin shrink-0" />
-        )}
-        <span className={`text-xs font-semibold ${
-          isError ? 'text-red-400' : phase === 'ready' ? 'text-emerald-400' : 'text-violet-300'
-        }`}>
-          {isError ? 'Falha na ativação' : phase === 'ready' ? 'AI Gateway ativado!' : 'Ativando AI Gateway...'}
-        </span>
-      </div>
-
-      {!isError && (
-        <div className="space-y-2 pl-1">
-          {ACTIVATION_STEPS.map((step, idx) => {
-            const done = currentIndex > idx || phase === 'ready'
-            const active = PHASE_ORDER[currentIndex] === step.key && phase !== 'ready'
-            return (
-              <div key={step.key} className="flex items-center gap-2.5">
-                <div className={`size-4 rounded-full border flex items-center justify-center shrink-0 transition-colors ${
-                  done
-                    ? 'border-emerald-500/50 bg-emerald-500/20'
-                    : active
-                      ? 'border-violet-500/50 bg-violet-500/10'
-                      : 'border-[var(--ds-border-subtle)]'
-                }`}>
-                  {done ? (
-                    <span className="text-emerald-400 text-[9px] font-bold">✓</span>
-                  ) : active ? (
-                    <Loader2 className="size-2.5 text-violet-400 animate-spin" />
-                  ) : null}
-                </div>
-                <span className={`text-xs transition-colors ${
-                  done
-                    ? 'text-[var(--ds-text-secondary)] line-through decoration-[var(--ds-text-muted)]'
-                    : active
-                      ? 'text-[var(--ds-text-primary)]'
-                      : 'text-[var(--ds-text-muted)]'
-                }`}>
-                  {active ? step.activeLabel : step.label}
-                </span>
-              </div>
-            )
-          })}
-        </div>
-      )}
-
-      {isError && (
-        <p className="text-xs text-red-400/80 pl-1">
-          A chave foi salva localmente. Tente salvar novamente para reativar o Gateway.
-        </p>
-      )}
-    </div>
-  )
-}
 
 export default function AICenterPage() {
   const {
     isDevMode,
     provider,
     model,
-    providerStatuses,
-    orderedProviders,
-    configuredProvidersCount,
-    hasAnyKey,
     primaryModelLabel,
     fallback,
     fallbackSummary,
     routes,
     prompts,
     primaryModelOptions,
-    inlineKeyProvider,
-    apiKeyDrafts,
     isLoading,
     isSaving,
-    isSavingKey,
-    isActivating,
-    activationPhase,
     errorMessage,
     ocrConfig,
     mistralKeyDraft,
@@ -608,9 +513,6 @@ export default function AICenterPage() {
     handleFallbackMove,
     handleFallbackToggle,
     handleModelChange,
-    handleInlineKeyToggle,
-    handleApiKeyDraftChange,
-    handleSaveKey,
     handleOcrProviderChange,
     handleOcrGeminiModelChange,
     handleSaveMistralKey,
@@ -653,10 +555,6 @@ export default function AICenterPage() {
         <div className="mb-4 rounded-2xl border border-[var(--ds-status-error)]/20 bg-[var(--ds-status-error-bg)] px-4 py-3 text-xs text-[var(--ds-status-error-text)]">
           {errorMessage}
         </div>
-      )}
-
-      {activationPhase !== 'idle' && (
-        <GatewayActivationStepper phase={activationPhase} />
       )}
 
       {/* Loading skeleton - evita flash de estado incorreto */}
@@ -715,42 +613,24 @@ export default function AICenterPage() {
             <div className="space-y-1">
               <h3 className="text-lg font-semibold text-[var(--ds-text-primary)]">Modelo principal</h3>
               <p className="text-sm text-[var(--ds-text-secondary)]">
-                {hasAnyKey ? 'Escolha o modelo para produção.' : 'Adicione uma chave de API para começar.'}
+                Escolha o provider e modelo para produção. Auth via AI Gateway OIDC.
               </p>
             </div>
-            {/* Só mostra fallback quando tem 2+ chaves */}
-            {configuredProvidersCount >= 2 && (
-              <div className="flex items-center gap-3 text-xs text-[var(--ds-text-muted)]">
-                <span>Fallback automático: {fallbackSummary}</span>
-                <MockSwitch
-                  on={fallback.enabled}
-                  onToggle={handleFallbackToggle}
-                  label="Ativar fallback"
-                />
-              </div>
-            )}
+            <div className="flex items-center gap-3 text-xs text-[var(--ds-text-muted)]">
+              <span>Fallback: {fallbackSummary}</span>
+              <MockSwitch
+                on={fallback.enabled}
+                onToggle={handleFallbackToggle}
+                label="Ativar fallback"
+              />
+            </div>
           </div>
 
           <div className="mt-5 space-y-2">
-            {orderedProviders.map((providerId, index) => {
+            {fallback.order.map((providerId, index) => {
               const item = getProviderConfig(providerId)
               if (!item) return null
               const isActive = item.id === provider
-              const status = providerStatuses[item.id] ?? { isConfigured: false, source: 'none' as const, tokenPreview: null }
-              const isInlineEditing = inlineKeyProvider === item.id
-              const statusLabel = isActive
-                ? status.isConfigured
-                  ? 'Em uso'
-                  : 'Sem chave'
-                : status.isConfigured
-                  ? 'Disponível'
-                  : 'Inativa'
-              const statusTone =
-                status.isConfigured && isActive
-                  ? 'emerald'
-                  : status.isConfigured
-                    ? 'zinc'
-                    : 'red'
               return (
                 <div
                   key={item.id}
@@ -761,8 +641,7 @@ export default function AICenterPage() {
                   }`}
                 >
                   <div className="flex flex-wrap items-center gap-3">
-                    {/* Só mostra controles de ordem quando tem 2+ chaves */}
-                    {configuredProvidersCount >= 2 && (
+                    {fallback.enabled && (
                       <div className="flex flex-col items-center gap-1 text-xs text-[var(--ds-text-muted)]">
                         <button
                           type="button"
@@ -778,7 +657,7 @@ export default function AICenterPage() {
                           type="button"
                           className="flex h-6 w-6 items-center justify-center rounded-md border border-[var(--ds-border-default)] text-[var(--ds-text-secondary)] transition hover:bg-[var(--ds-bg-hover)] hover:text-[var(--ds-text-primary)] disabled:opacity-40"
                           onClick={() => handleFallbackMove(item.id, 1)}
-                          disabled={index === orderedProviders.length - 1}
+                          disabled={index === fallback.order.length - 1}
                           aria-label="Mover para baixo"
                         >
                           <ChevronDown className="size-3" />
@@ -788,56 +667,33 @@ export default function AICenterPage() {
                     <div className="flex min-w-0 flex-1 flex-wrap items-center justify-between gap-3">
                       <div>
                         <div className="text-sm font-semibold text-[var(--ds-text-primary)]">{item.name}</div>
-                        {status.isConfigured && (
-                          <div className="text-xs text-[var(--ds-text-secondary)]">
-                            Modelo: {isActive ? primaryModelLabel : getModelLabel(item.id, fallback.models?.[item.id] || item.models[0]?.id || '')}
-                          </div>
-                        )}
+                        <div className="text-xs text-[var(--ds-text-secondary)]">
+                          Modelo: {isActive ? primaryModelLabel : getModelLabel(item.id, fallback.models?.[item.id] || item.models[0]?.id || '')}
+                        </div>
                       </div>
                       <div className="flex flex-wrap items-center gap-2">
-                        <StatusPill label={statusLabel} tone={statusTone} />
-                      {isActive ? (
-                        <button
-                          type="button"
-                          className="rounded-lg border border-[var(--ds-border-default)] bg-[var(--ds-bg-hover)] px-3 py-1.5 text-xs font-medium text-[var(--ds-text-primary)] transition hover:bg-[var(--ds-bg-surface)]"
-                          onClick={() => handleInlineKeyToggle(item.id)}
-                        >
-                          {isInlineEditing
-                            ? 'Cancelar'
-                            : status.isConfigured
-                              ? 'Atualizar chave'
-                              : 'Adicionar chave'}
-                        </button>
-                      ) : status.isConfigured ? (
-                        <button
-                          type="button"
-                          className="rounded-lg border border-[var(--ds-border-default)] bg-[var(--ds-bg-hover)] px-3 py-1.5 text-xs font-medium text-[var(--ds-text-primary)] transition hover:bg-[var(--ds-bg-surface)]"
-                          onClick={() => handleProviderSelect(item.id)}
-                        >
-                          Definir como padrão
-                        </button>
-                      ) : (
-                        <button
-                          type="button"
-                          className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-xs font-medium text-amber-200 transition hover:bg-amber-500/20"
-                          onClick={() => handleInlineKeyToggle(item.id)}
-                        >
-                          {isInlineEditing ? 'Cancelar' : 'Adicionar chave'}
-                        </button>
-                      )}
+                        <StatusPill label={isActive ? 'Em uso' : 'Disponível'} tone={isActive ? 'emerald' : 'zinc'} />
+                        {!isActive && (
+                          <button
+                            type="button"
+                            className="rounded-lg border border-[var(--ds-border-default)] bg-[var(--ds-bg-hover)] px-3 py-1.5 text-xs font-medium text-[var(--ds-text-primary)] transition hover:bg-[var(--ds-bg-surface)]"
+                            onClick={() => handleProviderSelect(item.id)}
+                          >
+                            Definir como padrão
+                          </button>
+                        )}
                       </div>
                     </div>
                   </div>
 
-                  {isActive && status.isConfigured && (
+                  {isActive && (
                     <div className="mt-4">
                       <label className="text-xs text-[var(--ds-text-muted)]">Selecionar modelo</label>
                       <div className="relative mt-2">
                         <select
                           value={model}
                           onChange={(event) => handleModelChange(event.target.value)}
-                          disabled={!status.isConfigured}
-                          className="w-full rounded-lg border border-[var(--ds-border-default)] bg-[var(--ds-bg-surface)] px-3 py-2 text-sm text-[var(--ds-text-primary)] outline-none transition focus:border-emerald-500/40 disabled:cursor-not-allowed disabled:opacity-60"
+                          className="w-full rounded-lg border border-[var(--ds-border-default)] bg-[var(--ds-bg-surface)] px-3 py-2 text-sm text-[var(--ds-text-primary)] outline-none transition focus:border-emerald-500/40"
                         >
                           {primaryModelOptions.map((modelOption) => (
                             <option key={modelOption.id} value={modelOption.id}>
@@ -848,49 +704,9 @@ export default function AICenterPage() {
                       </div>
                     </div>
                   )}
-
-                  {isInlineEditing && (
-                    <div className="mt-4 flex flex-wrap items-center gap-3">
-                      <input
-                        type="password"
-                        placeholder="Chave de API"
-                        value={apiKeyDrafts[item.id]}
-                        onChange={(event) => handleApiKeyDraftChange(item.id, event.target.value)}
-                        className="min-w-[220px] flex-1 rounded-lg border border-[var(--ds-border-default)] bg-[var(--ds-bg-surface)] px-3 py-2 text-sm text-[var(--ds-text-primary)] outline-none transition focus:border-emerald-500/40"
-                      />
-                      <button
-                        type="button"
-                        className="rounded-lg bg-primary-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-primary-500 dark:bg-white dark:text-zinc-900 dark:hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-60"
-                        onClick={() => handleSaveKey(item.id)}
-                        disabled={isSavingKey || !apiKeyDrafts[item.id].trim()}
-                      >
-                        {isSavingKey ? 'Salvando...' : 'Salvar chave'}
-                      </button>
-                    </div>
-                  )}
                 </div>
               )
             })}
-          </div>
-
-          {/* Nota de ajuda unificada */}
-          <div className="mt-4 flex items-center gap-3 rounded-lg border border-[var(--ds-border-subtle)] bg-[var(--ds-bg-tertiary)] px-4 py-2.5 text-xs">
-            <span className="text-[var(--ds-text-secondary)]">Obter chave:</span>
-            <a href={API_KEY_URLS.google.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-emerald-400 hover:text-emerald-300 hover:underline">
-              Google <ExternalLink className="size-3" />
-            </a>
-            {isDevMode && (
-              <>
-                <span className="text-[var(--ds-text-muted)]">•</span>
-                <a href={API_KEY_URLS.openai.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-emerald-400 hover:text-emerald-300 hover:underline">
-                  OpenAI <ExternalLink className="size-3" />
-                </a>
-                <span className="text-[var(--ds-text-muted)]">•</span>
-                <a href={API_KEY_URLS.anthropic.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-emerald-400 hover:text-emerald-300 hover:underline">
-                  Anthropic <ExternalLink className="size-3" />
-                </a>
-              </>
-            )}
           </div>
         </section>
 
@@ -925,18 +741,16 @@ export default function AICenterPage() {
                   <div>
                     <div className="text-sm font-semibold text-[var(--ds-text-primary)]">Gemini</div>
                     <div className="text-xs text-[var(--ds-text-secondary)]">
-                      {providerStatuses.google.isConfigured
-                        ? 'Usa sua chave Gemini já configurada'
-                        : 'Requer chave Gemini configurada acima'}
+                      Usa o AI Gateway (OIDC)
                     </div>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  {ocrConfig.provider === 'gemini' && providerStatuses.google.isConfigured ? (
+                  {ocrConfig.provider === 'gemini' ? (
                     <span className="rounded-full bg-emerald-500/20 px-2.5 py-1 text-xs font-medium text-emerald-300">
                       Em uso
                     </span>
-                  ) : providerStatuses.google.isConfigured ? (
+                  ) : (
                     <button
                       type="button"
                       onClick={() => handleOcrProviderChange('gemini')}
@@ -945,16 +759,12 @@ export default function AICenterPage() {
                     >
                       Usar Gemini
                     </button>
-                  ) : (
-                    <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2.5 py-1 text-xs text-amber-300">
-                      Sem chave
-                    </span>
                   )}
                 </div>
               </div>
 
               {/* Gemini Model Selection - shown when Gemini is active */}
-              {ocrConfig.provider === 'gemini' && providerStatuses.google.isConfigured && (
+              {ocrConfig.provider === 'gemini' && (
                 <div className="mt-4 border-t border-[var(--ds-border-subtle)] pt-4">
                   <label className="text-xs text-[var(--ds-text-muted)]">Modelo para OCR</label>
                   <div className="mt-2">

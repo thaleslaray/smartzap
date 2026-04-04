@@ -216,7 +216,7 @@ export async function POST(request: NextRequest) {
       console.log(`[knowledge] Indexing ${name} in pgvector for agent ${agent_id}`)
 
       // Build embedding config from agent settings
-      const embeddingConfig = buildEmbeddingConfigFromAgent(agent as AIAgent, apiKey)
+      const embeddingConfig = buildEmbeddingConfigFromAgent(agent as AIAgent)
 
       // Index document (chunk → embed → store)
       const result = await indexDocument({

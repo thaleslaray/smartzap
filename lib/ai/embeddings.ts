@@ -23,7 +23,7 @@ export interface EmbeddingConfig {
   provider: EmbeddingProvider
   model: string
   dimensions: number
-  apiKey: string
+  apiKey?: string
 }
 
 // Provider info para UI de seleção
@@ -367,10 +367,6 @@ export function validateEmbeddingConfig(config: Partial<EmbeddingConfig>): strin
 
   if (!config.dimensions || config.dimensions <= 0) {
     return 'Dimensões de embedding inválidas'
-  }
-
-  if (!config.apiKey) {
-    return 'API key não configurada'
   }
 
   const provider = EMBEDDING_PROVIDERS.find((p) => p.id === config.provider)

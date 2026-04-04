@@ -311,7 +311,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
             console.log(`[ai-agents/chat] Knowledge search: "${query.slice(0, 80)}..."`)
             searchPerformed = true
 
-            const embeddingConfig = buildEmbeddingConfigFromAgent(agent as AIAgent, embeddingApiKey)
+            const embeddingConfig = buildEmbeddingConfigFromAgent(agent as AIAgent)
             const rerankConfig = await buildRerankConfigFromAgent(agent as AIAgent)
 
             const relevantContent = await findRelevantContent({

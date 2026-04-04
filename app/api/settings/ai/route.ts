@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { clearSettingsCache } from '@/lib/ai'
-import { isVercelApiConfigured, setProviderApiKey, triggerRedeploy } from '@/lib/vercel-api'
 import { DEFAULT_AI_FALLBACK, DEFAULT_AI_GATEWAY, DEFAULT_AI_PROMPTS, DEFAULT_AI_ROUTES } from '@/lib/ai/ai-center-defaults'
 import { DEFAULT_OCR_MODEL } from '@/lib/ai/ocr/providers/gemini'
 import {
@@ -39,48 +38,25 @@ interface ValidationResult {
  * Valida uma API key chamando o endpoint /models do provider via REST.
  * Sem SDK, sem chamadas LLM — apenas verifica autenticação.
  */
-async function validateApiKey(provider: string, apiKey: string): Promise<ValidationResult> {
-    type ProviderConfig = { url: string; headers: Record<string, string> }
-
-    const configs: Record<string, ProviderConfig> = {
-        google: {
-            url: 'https://generativelanguage.googleapis.com/v1beta/models',
-            headers: { 'x-goog-api-key': apiKey },
-        },
-        openai: {
-            url: 'https://api.openai.com/v1/models',
-            headers: { Authorization: `Bearer ${apiKey}` },
-        },
-        anthropic: {
-            url: 'https://api.anthropic.com/v1/models',
-            headers: { 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
-        },
-        mistral: {
-            url: 'https://api.mistral.ai/v1/models',
-            headers: { Authorization: `Bearer ${apiKey}` },
-        },
-    }
-
-    const config = configs[provider]
-    if (!config) return { valid: false, error: 'Provider desconhecido' }
-
+/**
+ * Valida a chave do Mistral chamando o endpoint /models via REST.
+ * Mistral OCR usa endpoint especializado (/v1/ocr) não disponível no AI Gateway.
+ */
+async function validateMistralKey(apiKey: string): Promise<ValidationResult> {
     try {
-        const res = await fetch(config.url, { headers: config.headers })
+        // noinspection HttpUrlsUsage
+        const res = await fetch('https://api.mistral.ai/v1/models', {
+            headers: { Authorization: `Bearer ${apiKey}` },
+        })
 
         if (res.ok) return { valid: true }
-
-        if (res.status === 401) return { valid: false, error: 'Chave de API inválida. Verifique se a chave está correta e ativa.' }
-        if (res.status === 403) return { valid: false, error: 'Acesso negado. A chave pode estar desativada ou a API não está habilitada no projeto.' }
-        if (res.status === 429) return { valid: false, error: 'Quota excedida ou billing não configurado. Verifique seu plano e configure o billing, depois gere uma nova chave.' }
-
+        if (res.status === 401) return { valid: false, error: 'Chave Mistral inválida. Verifique se a chave está correta e ativa.' }
+        if (res.status === 403) return { valid: false, error: 'Acesso negado. A chave pode estar desativada.' }
+        if (res.status === 429) return { valid: false, error: 'Quota excedida. Verifique seu plano Mistral.' }
         return { valid: false, error: `Erro ao validar chave: HTTP ${res.status}` }
     } catch (error) {
         const message = error instanceof Error ? error.message : 'Erro desconhecido'
-        console.error('[AI Key Validation] Error:', message)
-
-        if (message.includes('ENOTFOUND') || message.includes('ECONNREFUSED')) {
-            return { valid: false, error: 'Erro de conexão. Verifique sua internet e tente novamente.' }
-        }
+        console.error('[Mistral Key Validation] Error:', message)
         return { valid: false, error: `Erro ao validar chave: ${message}` }
     }
 }
@@ -101,9 +77,6 @@ export async function GET() {
             ?.from('settings')
             .select('key, value')
             .in('key', [
-                'gemini_api_key',
-                'openai_api_key',
-                'anthropic_api_key',
                 'mistral_api_key',
                 'ai_provider',
                 'ai_model',
@@ -128,29 +101,6 @@ export async function GET() {
         // Get the current/saved provider
         const savedProvider = settingsMap.get('ai_provider') as string || 'google'
         const savedModel = settingsMap.get('ai_model') as string || ''
-
-        // Get API keys for each provider (from DB or env)
-        const providerKeys = {
-            google: settingsMap.get('gemini_api_key') || process.env.GOOGLE_GENERATIVE_AI_API_KEY || process.env.GEMINI_API_KEY || '',
-            openai: settingsMap.get('openai_api_key') || process.env.OPENAI_API_KEY || '',
-            anthropic: settingsMap.get('anthropic_api_key') || process.env.ANTHROPIC_API_KEY || '',
-        }
-
-        // Get source for each provider
-        const providerSources = {
-            google: settingsMap.get('gemini_api_key') ? 'database' : (providerKeys.google ? 'env' : 'none'),
-            openai: settingsMap.get('openai_api_key') ? 'database' : (providerKeys.openai ? 'env' : 'none'),
-            anthropic: settingsMap.get('anthropic_api_key') ? 'database' : (providerKeys.anthropic ? 'env' : 'none'),
-        }
-
-        // Get preview for each provider
-        const getPreview = (key: string) => key ? `${key.substring(0, 4)}...${key.substring(key.length - 4)}` : null
-
-        const providerPreviews = {
-            google: getPreview(providerKeys.google),
-            openai: getPreview(providerKeys.openai),
-            anthropic: getPreview(providerKeys.anthropic),
-        }
 
         const routes = prepareAiRoutesUpdate(
             parseJsonSetting(settingsMap.get('ai_routes') as string | null, DEFAULT_AI_ROUTES)
@@ -179,32 +129,11 @@ export async function GET() {
         const ocrProvider = (settingsMap.get('ocr_provider') as 'gemini' | 'mistral') || 'gemini'
         const ocrGeminiModel = settingsMap.get('ocr_gemini_model') || DEFAULT_OCR_MODEL
 
+        const getPreview = (key: string) => key ? `${key.substring(0, 4)}...${key.substring(key.length - 4)}` : null
+
         return NextResponse.json({
-            // Saved configuration
             provider: savedProvider,
             model: savedModel,
-            // Per-provider status
-            providers: {
-                google: {
-                    isConfigured: !!providerKeys.google,
-                    source: providerSources.google,
-                    tokenPreview: providerPreviews.google,
-                },
-                openai: {
-                    isConfigured: !!providerKeys.openai,
-                    source: providerSources.openai,
-                    tokenPreview: providerPreviews.openai,
-                },
-                anthropic: {
-                    isConfigured: !!providerKeys.anthropic,
-                    source: providerSources.anthropic,
-                    tokenPreview: providerPreviews.anthropic,
-                },
-            },
-            // Legacy fields for backward compat (uses saved provider's key)
-            isConfigured: !!providerKeys[savedProvider as keyof typeof providerKeys],
-            source: providerSources[savedProvider as keyof typeof providerSources],
-            tokenPreview: providerPreviews[savedProvider as keyof typeof providerPreviews],
             routes,
             fallback,
             gateway,
@@ -233,8 +162,6 @@ export async function POST(request: NextRequest) {
     try {
         const body = await request.json()
         const {
-            apiKey,
-            apiKeyProvider,
             provider,
             model,
             routes,
@@ -248,7 +175,7 @@ export async function POST(request: NextRequest) {
         } = body
 
         // At least one field must be provided
-        if (!apiKey && !provider && !model && !routes && !fallback && !gateway && !prompts && !ocr_provider && !ocr_gemini_model && !mistral_api_key) {
+        if (!provider && !model && !routes && !fallback && !gateway && !prompts && !ocr_provider && !ocr_gemini_model && !mistral_api_key) {
             return NextResponse.json(
                 { error: 'At least one field is required' },
                 { status: 400 }
@@ -257,32 +184,6 @@ export async function POST(request: NextRequest) {
 
         const updates: Array<{ key: string; value: string; updated_at: string }> = []
         const now = new Date().toISOString()
-
-        // Validate and save API key
-        if (apiKey) {
-            const targetProvider = apiKeyProvider || provider || 'google'
-
-            // Validate the API key by making a test call
-            const validationResult = await validateApiKey(targetProvider, apiKey)
-            if (!validationResult.valid) {
-                return NextResponse.json(
-                    { error: `Chave de API inválida: ${validationResult.error}` },
-                    { status: 400 }
-                )
-            }
-
-            let keyName = 'gemini_api_key'
-            switch (targetProvider) {
-                case 'openai':
-                    keyName = 'openai_api_key'
-                    break
-                case 'anthropic':
-                    keyName = 'anthropic_api_key'
-                    break
-            }
-
-            updates.push({ key: keyName, value: apiKey, updated_at: now })
-        }
 
         // Save provider selection
         if (provider) {
@@ -405,7 +306,7 @@ export async function POST(request: NextRequest) {
 
         // OCR: Validate and save Mistral API key
         if (mistral_api_key) {
-            const validationResult = await validateApiKey('mistral', mistral_api_key)
+            const validationResult = await validateMistralKey(mistral_api_key)
             if (!validationResult.valid) {
                 return NextResponse.json(
                     { error: `Chave Mistral inválida: ${validationResult.error}` },
@@ -430,30 +331,10 @@ export async function POST(request: NextRequest) {
         clearSettingsCache()
         clearAiCenterCache()
 
-        // Ativa BYOK no AI Gateway: persiste a chave como env var no Vercel + redeploy
-        // O Gateway lê as env vars padrão (OPENAI_API_KEY, ANTHROPIC_API_KEY, etc.) automaticamente
-        let pendingActivation = false
-        let deploymentId: string | undefined
-        if (apiKey && isVercelApiConfigured()) {
-            const targetProvider = apiKeyProvider || provider || 'google'
-            try {
-                await setProviderApiKey(targetProvider, apiKey)
-                deploymentId = await triggerRedeploy()
-                pendingActivation = true
-                console.log(`[AI Settings] BYOK ativado para ${targetProvider}, deployment: ${deploymentId}`)
-            } catch (vercelError) {
-                // Não bloqueia o save — a chave está no banco, o usuário pode redeploy manualmente
-                console.error('[AI Settings] Falha ao ativar BYOK no Vercel:', vercelError)
-            }
-        }
-
         return NextResponse.json({
             success: true,
-            message: pendingActivation
-                ? 'Configuração salva. Ativando no AI Gateway (~2 min)...'
-                : 'AI configuration saved successfully',
+            message: 'AI configuration saved successfully',
             saved: updates.map(u => u.key),
-            ...(pendingActivation && { pendingActivation: true, deploymentId }),
         })
     } catch (error) {
         console.error('Error saving AI settings:', error)
@@ -469,22 +350,15 @@ export async function DELETE(request: NextRequest) {
         const { searchParams } = new URL(request.url)
         const provider = searchParams.get('provider')
 
-        if (!provider || !['google', 'openai', 'anthropic', 'mistral'].includes(provider)) {
+        // Only Mistral key removal is supported — other providers use AI Gateway OIDC
+        if (provider !== 'mistral') {
             return NextResponse.json(
-                { error: 'Valid provider is required (google, openai, anthropic, mistral)' },
+                { error: 'Only mistral provider key can be removed. Other providers use AI Gateway OIDC.' },
                 { status: 400 }
             )
         }
 
-        // Map provider to key name
-        const keyMap: Record<string, string> = {
-            google: 'gemini_api_key',
-            openai: 'openai_api_key',
-            anthropic: 'anthropic_api_key',
-            mistral: 'mistral_api_key',
-        }
-
-        const keyName = keyMap[provider]
+        const keyName = 'mistral_api_key'
 
         // Delete the key from database
         const { error } = await supabase.admin

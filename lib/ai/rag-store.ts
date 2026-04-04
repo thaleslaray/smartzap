@@ -267,15 +267,11 @@ export async function findRelevantContent(
 /**
  * Constrói EmbeddingConfig a partir de um AIAgent
  */
-export function buildEmbeddingConfigFromAgent(
-  agent: AIAgent,
-  apiKey: string
-): EmbeddingConfig {
+export function buildEmbeddingConfigFromAgent(agent: AIAgent): EmbeddingConfig {
   return {
     provider: (agent.embedding_provider || 'google') as EmbeddingConfig['provider'],
     model: agent.embedding_model || 'gemini-embedding-001',
     dimensions: agent.embedding_dimensions || 768,
-    apiKey,
   }
 }
 

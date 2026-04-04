@@ -11,8 +11,7 @@
  * - gemini-3-flash-preview: Última geração (preview)
  */
 
-import { createGoogleGenerativeAI } from '@ai-sdk/google'
-import { generateText } from 'ai'
+import { generateText, gateway } from 'ai'
 import type { OCRProvider, OCRProcessParams, OCRResult } from '../types'
 
 /** Modelo padrão para OCR - bom custo/benefício */
@@ -41,13 +40,11 @@ export class GeminiOCRProvider implements OCRProvider {
   name = 'gemini'
 
   constructor(
-    private apiKey: string,
     private modelId: string = DEFAULT_OCR_MODEL
   ) {}
 
   async process({ content, mimeType, fileName }: OCRProcessParams): Promise<OCRResult> {
-    const google = createGoogleGenerativeAI({ apiKey: this.apiKey })
-    const model = google(this.modelId)
+    const model = gateway(`google/${this.modelId}`)
 
     // AI SDK espera Buffer, NÃO string base64 (o SDK converte internamente)
     let fileData: Buffer
@@ -93,6 +90,7 @@ export class GeminiOCRProvider implements OCRProvider {
   }
 
   async isConfigured(): Promise<boolean> {
-    return !!this.apiKey
+    // Autenticação é responsabilidade do AI Gateway (OIDC) — sempre disponível
+    return true
   }
 }

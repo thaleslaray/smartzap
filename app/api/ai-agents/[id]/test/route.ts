@@ -220,7 +220,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
             searchPerformed = true
             const ragStartTime = Date.now()
 
-            const embeddingConfig = buildEmbeddingConfigFromAgent(agent as AIAgent, embeddingApiKey)
+            const embeddingConfig = buildEmbeddingConfigFromAgent(agent as AIAgent)
 
             const relevantContent = await findRelevantContent({
               agentId: id,

@@ -274,8 +274,6 @@ export const settingsService = {
    * Save AI settings (including OCR configuration)
    */
   saveAIConfig: (data: {
-    apiKey?: string;
-    apiKeyProvider?: string;
     provider?: string;
     model?: string;
     routes?: AiRoutesConfig;
@@ -290,7 +288,7 @@ export const settingsService = {
   /**
    * Remove API key for a specific provider (including mistral for OCR)
    */
-  removeAIKey: async (provider: 'google' | 'openai' | 'anthropic' | 'mistral') => {
+  removeAIKey: async (provider: 'mistral') => {
     const response = await fetch(`/api/settings/ai?provider=${provider}`, {
       method: 'DELETE',
     });
