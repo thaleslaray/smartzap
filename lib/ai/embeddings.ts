@@ -103,7 +103,7 @@ async function getEmbeddingModel(config: EmbeddingConfig) {
   // Verifica se AI Gateway está habilitado
   const gatewayConfig = await getAiGatewayConfig()
 
-  if (gatewayConfig.enabled && (config.provider === 'google' || config.provider === 'openai')) {
+  if (config.provider === 'google' || config.provider === 'openai') {
     // Usa AI Gateway para embedding
     const { createOpenAI } = await import('@ai-sdk/openai')
 
@@ -134,37 +134,10 @@ async function getEmbeddingModel(config: EmbeddingConfig) {
     return openai.embedding(gatewayModelId)
   }
 
-  // Fallback: conexão direta
-  switch (config.provider) {
-    case 'google': {
-      const { createGoogleGenerativeAI } = await import('@ai-sdk/google')
-      const google = createGoogleGenerativeAI({ apiKey: config.apiKey })
-      return google.embedding(config.model)
-    }
-
-    case 'openai': {
-      const { createOpenAI } = await import('@ai-sdk/openai')
-      const openai = createOpenAI({ apiKey: config.apiKey })
-      return openai.embedding(config.model)
-    }
-
-    // Voyage e Cohere requerem instalação de pacotes adicionais:
-    // npm install @ai-sdk/cohere (para Cohere)
-    // Voyage não tem provider oficial ainda - usar Google ou OpenAI
-    case 'voyage':
-      throw new Error(
-        'Voyage AI não está disponível. Use Google ou OpenAI para embeddings.'
-      )
-
-    case 'cohere':
-      throw new Error(
-        'Cohere embeddings requer instalação: npm install @ai-sdk/cohere. ' +
-        'Use Google ou OpenAI como alternativa.'
-      )
-
-    default:
-      throw new Error(`Unsupported embedding provider: ${config.provider}`)
-  }
+  // Voyage e Cohere não são suportados pelo AI Gateway — usar Google ou OpenAI
+  throw new Error(
+    `Provider "${config.provider}" não suportado via AI Gateway. Use Google ou OpenAI para embeddings.`
+  )
 }
 
 /**

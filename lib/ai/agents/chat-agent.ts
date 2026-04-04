@@ -17,6 +17,7 @@
 
 import { z } from 'zod'
 import { getSupabaseAdmin } from '@/lib/supabase'
+import { DEFAULT_MODEL_ID, normalizeToGatewayModelId } from '@/lib/ai/model'
 import type { AIAgent, InboxConversation, InboxMessage } from '@/types'
 
 // NOTE: AI dependencies are imported DYNAMICALLY inside processChatAgent
@@ -193,7 +194,6 @@ export type SupportResponse = z.infer<typeof supportResponseSchema>
 // Constants
 // =============================================================================
 
-const DEFAULT_MODEL_ID = 'gemini-3-flash-preview'
 const DEFAULT_TEMPERATURE = 0.7
 const DEFAULT_MAX_TOKENS = 2048
 const AI_TIMEOUT_MS = 90_000 // 90 segundos - timeout para chamadas de IA (considera RAG + tools)
@@ -351,7 +351,7 @@ export async function processChatAgent(
   // Get model configuration - routes through AI Gateway via OIDC
   const modelId = agent.model || DEFAULT_MODEL_ID
 
-  const baseModel = gateway(modelId)
+  const baseModel = gateway(normalizeToGatewayModelId(modelId))
   const model = await withDevTools(baseModel, { name: `agente:${agent.name}` })
 
   console.log(`[chat-agent] Using gateway model: ${modelId}`)

@@ -372,6 +372,7 @@ export async function DELETE(request: NextRequest) {
         }
 
         clearSettingsCache()
+        clearAiCenterCache()
 
         return NextResponse.json({
             success: true,
