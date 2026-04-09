@@ -10,7 +10,6 @@ import {
   type UIMessage,
 } from 'ai'
 import { createGoogleGenerativeAI } from '@ai-sdk/google'
-import { createOpenAI } from '@ai-sdk/openai'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase-server'
 import { DEFAULT_MODEL_ID } from '@/lib/ai/model'
@@ -213,14 +212,8 @@ export async function POST(req: Request) {
     // Criar modelo direto via provider
     const config = await getAiDirectConfig()
     const targetModelId = agent.model || config.model || DEFAULT_MODEL_ID
-    let model
-    if (config.provider === 'google') {
-        if (!config.googleApiKey) throw new Error('Chave Google não configurada. Acesse Configurações → IA.')
-        model = createGoogleGenerativeAI({ apiKey: config.googleApiKey })(targetModelId)
-    } else {
-        if (!config.openaiApiKey) throw new Error('Chave OpenAI não configurada. Acesse Configurações → IA.')
-        model = createOpenAI({ apiKey: config.openaiApiKey })(targetModelId)
-    }
+    if (!config.googleApiKey) throw new Error('Chave Google não configurada. Acesse Configurações → IA.')
+    const model = createGoogleGenerativeAI({ apiKey: config.googleApiKey })(targetModelId)
 
     console.log(`[inbox/chat] Using model: ${targetModelId} (provider: ${config.provider})`)
 

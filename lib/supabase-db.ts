@@ -1185,18 +1185,24 @@ export const contactDb = {
     },
 
     getStats: async () => {
-        // Usa RPC para contar no SQL (evita carregar todos contatos em memória)
-        const { data, error } = await supabase.rpc('get_contact_stats')
+        // Usa count: 'exact' com head: true — não retorna linhas, só o count via header.
+        // Evita o limite padrão de 1000 linhas da RPC e garante contagem correta.
+        const [totalResult, optInResult, optOutResult] = await Promise.all([
+            supabase.from('contacts').select('*', { count: 'exact', head: true }),
+            supabase.from('contacts').select('*', { count: 'exact', head: true })
+                .in('status', ['OPT_IN', 'Opt-in']),
+            supabase.from('contacts').select('*', { count: 'exact', head: true })
+                .in('status', ['OPT_OUT', 'Opt-out']),
+        ])
 
-        if (error) {
-            console.error('Failed to get contact stats:', error)
-            throw error
-        }
+        if (totalResult.error) throw totalResult.error
+        if (optInResult.error) throw optInResult.error
+        if (optOutResult.error) throw optOutResult.error
 
         return {
-            total: data?.total || 0,
-            optIn: data?.optIn || 0,
-            optOut: data?.optOut || 0,
+            total: totalResult.count ?? 0,
+            optIn: optInResult.count ?? 0,
+            optOut: optOutResult.count ?? 0,
         }
     },
 }

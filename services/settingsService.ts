@@ -269,20 +269,18 @@ export const settingsService = {
    * Save AI settings
    */
   saveAIConfig: (data: {
-    provider?: string;
     model?: string;
     google_api_key?: string;
-    openai_api_key?: string;
     routes?: AiRoutesConfig;
     prompts?: AiPromptsConfig;
     ocr_gemini_model?: string;
   }) => api.post('/api/settings/ai', data),
 
   /**
-   * Remove API key for a specific provider
+   * Remove Google API key
    */
-  removeAIKey: async (provider: 'google' | 'openai') => {
-    const response = await fetch(`/api/settings/ai?provider=${provider}`, {
+  removeAIKey: async (_provider: 'google') => {
+    const response = await fetch('/api/settings/ai?provider=google', {
       method: 'DELETE',
     });
 

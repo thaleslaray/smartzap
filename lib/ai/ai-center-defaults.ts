@@ -11,13 +11,13 @@ export type AiRoutesConfig = {
 }
 
 /** Provider de IA suportado pelo SmartZap. */
-export type AiProviderType = 'google' | 'openai'
+export type AiProviderType = 'google'
 
 /**
  * Configuração de provider direto.
  *
  * O SmartZap usa as chaves do próprio usuário, armazenadas no Supabase.
- * Cada cliente paga diretamente ao provider (Google / OpenAI).
+ * Cada cliente paga diretamente ao provider (Google).
  */
 export type AiDirectConfig = {
   /** Provider ativo. */
@@ -26,8 +26,6 @@ export type AiDirectConfig = {
   model: string
   /** Chave API do Google Gemini (lida do Supabase). */
   googleApiKey?: string
-  /** Chave API da OpenAI (lida do Supabase). */
-  openaiApiKey?: string
 }
 
 export type AiPromptsConfig = {

@@ -34,7 +34,6 @@ type AIConfigResponse = {
   prompts: AiPromptsConfig
   keys: {
     google: { isConfigured: boolean; source: string; tokenPreview: string | null }
-    openai: { isConfigured: boolean; source: string; tokenPreview: string | null }
   }
   ocr?: OCRConfig
 }
@@ -67,9 +66,7 @@ export const useSettingsAIController = () => {
 
   // API keys
   const [googleKey, setGoogleKey] = useState<KeyState>(DEFAULT_KEY_STATE)
-  const [openaiKey, setOpenaiKey] = useState<KeyState>(DEFAULT_KEY_STATE)
   const [googleKeyDraft, setGoogleKeyDraft] = useState('')
-  const [openaiKeyDraft, setOpenaiKeyDraft] = useState('')
 
   // Modelos dinâmicos do provider
   const [models, setModels] = useState<AIModelInfo[]>([])
@@ -91,8 +88,8 @@ export const useSettingsAIController = () => {
     setErrorMessage(null)
     try {
       const data = (await settingsService.getAIConfig()) as AIConfigResponse
-      const nextProvider: AiProviderType =
-        data.provider === 'openai' ? 'openai' : 'google'
+      // Único provider suportado: google
+      const nextProvider: AiProviderType = 'google'
       const nextModel = data.model?.trim() ? data.model : DEFAULT_MODEL_ID
 
       setProvider(nextProvider)
@@ -103,11 +100,6 @@ export const useSettingsAIController = () => {
       setGoogleKey({
         isConfigured: data.keys?.google?.isConfigured ?? false,
         tokenPreview: data.keys?.google?.tokenPreview ?? null,
-        status: 'unknown',
-      })
-      setOpenaiKey({
-        isConfigured: data.keys?.openai?.isConfigured ?? false,
-        tokenPreview: data.keys?.openai?.tokenPreview ?? null,
         status: 'unknown',
       })
 
@@ -173,30 +165,10 @@ export const useSettingsAIController = () => {
     }
   }
 
-  const handleSaveOpenAIKey = async () => {
-    const apiKey = openaiKeyDraft.trim()
-    if (!apiKey) {
-      toast.error('Informe a chave da OpenAI')
-      return
-    }
-    setOpenaiKey((k) => ({ ...k, status: 'saving' }))
+  const handleRemoveKey = async () => {
     try {
-      await settingsService.saveAIConfig({ openai_api_key: apiKey })
-      setOpenaiKeyDraft('')
-      toast.success('Chave OpenAI salva')
-      await loadConfig()
-      void fetchModels('openai')
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Erro ao salvar chave OpenAI'
-      setOpenaiKey((k) => ({ ...k, status: 'invalid' }))
-      toast.error(message)
-    }
-  }
-
-  const handleRemoveKey = async (targetProvider: 'google' | 'openai') => {
-    try {
-      await settingsService.removeAIKey(targetProvider)
-      toast.success(`Chave ${targetProvider === 'google' ? 'Google' : 'OpenAI'} removida`)
+      await settingsService.removeAIKey('google')
+      toast.success('Chave Google removida')
       setModels([])
       await loadConfig()
     } catch (error) {
@@ -206,14 +178,8 @@ export const useSettingsAIController = () => {
   }
 
   // =============================================================================
-  // HANDLERS — provider / model / config
+  // HANDLERS — model / config
   // =============================================================================
-
-  const handleProviderSelect = (nextProvider: AiProviderType) => {
-    setProvider(nextProvider)
-    setModel(DEFAULT_MODEL_ID)
-    setModels([])
-  }
 
   const handleModelChange = (nextModel: string) => {
     setModel(nextModel)
@@ -223,7 +189,7 @@ export const useSettingsAIController = () => {
     setIsSaving(true)
     setErrorMessage(null)
     try {
-      await settingsService.saveAIConfig({ provider, model, routes, prompts })
+      await settingsService.saveAIConfig({ model, routes, prompts })
       toast.success('Configurações salvas')
       await loadConfig()
     } catch (error) {
@@ -279,9 +245,7 @@ export const useSettingsAIController = () => {
 
     // API keys
     googleKey,
-    openaiKey,
     googleKeyDraft,
-    openaiKeyDraft,
 
     // Routes & Prompts
     routes,
@@ -301,10 +265,8 @@ export const useSettingsAIController = () => {
 
     // Handlers
     handleSave,
-    handleProviderSelect,
     handleModelChange,
     handleSaveGoogleKey,
-    handleSaveOpenAIKey,
     handleRemoveKey,
     fetchModels,
     handleOcrGeminiModelChange,
@@ -312,7 +274,6 @@ export const useSettingsAIController = () => {
     handleRouteToggle,
     handleStrategiesToggle,
     setGoogleKeyDraft,
-    setOpenaiKeyDraft,
   }
 }
 

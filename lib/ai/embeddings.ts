@@ -1,13 +1,8 @@
 /**
- * AI Embeddings - Multi-Provider Factory
+ * AI Embeddings - Google Gemini
  *
  * Gera embeddings vetoriais para RAG usando o Vercel AI SDK.
- * Suporta múltiplos providers: Google, OpenAI, Voyage, Cohere.
- *
- * O usuário escolhe o provider na config do agente.
- * Default: Google gemini-embedding-001 (768 dimensões, $0.025/1M tokens)
- *
- * Quando AI Gateway está habilitado, usa o Gateway para roteamento inteligente.
+ * Provider: Google gemini-embedding-001 (768 dimensões, $0.025/1M tokens)
  */
 
 import { embed, embedMany } from 'ai'
@@ -16,7 +11,7 @@ import { embed, embedMany } from 'ai'
 // Types
 // =============================================================================
 
-export type EmbeddingProvider = 'google' | 'openai' | 'voyage' | 'cohere'
+export type EmbeddingProvider = 'google'
 
 export interface EmbeddingConfig {
   provider: EmbeddingProvider
@@ -45,12 +40,7 @@ export interface EmbeddingProviderInfo {
  * Providers de embedding disponíveis.
  *
  * IMPORTANTE: A coluna pgvector está configurada para 768 dimensões.
- * Todos os modelos abaixo estão configurados para gerar 768 dimensões.
- *
- * - Google Gemini: 768 é nativo
- * - OpenAI text-embedding-3: Suporta dimensões customizadas via API (reduzido de 1536 para 768)
- *
- * Isso permite trocar de provider SEM precisar re-indexar documentos!
+ * Google Gemini embedding-001 gera 768 dimensões nativamente.
  */
 export const EMBEDDING_PROVIDERS: EmbeddingProviderInfo[] = [
   {
@@ -58,16 +48,6 @@ export const EMBEDDING_PROVIDERS: EmbeddingProviderInfo[] = [
     name: 'Google (Recomendado)',
     models: [
       { id: 'gemini-embedding-001', name: 'Gemini Embedding 001', dimensions: 768, pricePerMillion: 0.025 },
-    ],
-  },
-  {
-    id: 'openai',
-    name: 'OpenAI',
-    models: [
-      // OpenAI text-embedding-3 suporta dimensões customizadas via API
-      // Usamos 768 para compatibilidade com a coluna pgvector
-      { id: 'text-embedding-3-small', name: 'Text Embedding 3 Small', dimensions: 768, pricePerMillion: 0.02 },
-      { id: 'text-embedding-3-large', name: 'Text Embedding 3 Large', dimensions: 768, pricePerMillion: 0.13 },
     ],
   },
 ]
@@ -83,45 +63,28 @@ export const DEFAULT_EMBEDDING_CONFIG: Omit<EmbeddingConfig, 'apiKey'> = {
 }
 
 // =============================================================================
-// AI Gateway Configuration
-// =============================================================================
-
-const AI_GATEWAY_BASE_URL = 'https://ai-gateway.vercel.sh/v1'
-
-// =============================================================================
 // Provider Factory
 // =============================================================================
 
 /**
- * Cria o modelo de embedding via AI Gateway (OIDC).
- * Suporta Google e OpenAI. Voyage e Cohere não são suportados.
+ * Cria o modelo de embedding Google Gemini via @ai-sdk/google.
  */
 async function getEmbeddingModel(config: EmbeddingConfig) {
-  if (config.provider === 'google' || config.provider === 'openai') {
-    const { createOpenAI } = await import('@ai-sdk/openai')
+  const { createGoogleGenerativeAI } = await import('@ai-sdk/google')
 
-    const gatewayModelId = `${config.provider}/${config.model}`
-
-    const openai = createOpenAI({
-      apiKey: process.env.VERCEL_OIDC_TOKEN || process.env.AI_GATEWAY_API_KEY || 'dummy',
-      baseURL: AI_GATEWAY_BASE_URL,
-    })
-
-    console.log(`[embeddings] Gateway model: ${gatewayModelId}`)
-
-    return openai.embedding(gatewayModelId)
+  const apiKey = config.apiKey || process.env.GOOGLE_GENERATIVE_AI_API_KEY || process.env.GEMINI_API_KEY
+  if (!apiKey) {
+    throw new Error('Google API key não configurada para embeddings.')
   }
 
-  // Voyage e Cohere não são suportados pelo AI Gateway — usar Google ou OpenAI
-  throw new Error(
-    `Provider "${config.provider}" não suportado via AI Gateway. Use Google ou OpenAI para embeddings.`
-  )
+  const google = createGoogleGenerativeAI({ apiKey })
+  console.log(`[embeddings] Google model: ${config.model}`)
+  return google.textEmbeddingModel(config.model)
 }
 
 /**
- * Retorna providerOptions para o AI SDK
- * - Google: outputDimensionality e taskType (RETRIEVAL_QUERY vs RETRIEVAL_DOCUMENT)
- * - OpenAI: dimensions para text-embedding-3
+ * Retorna providerOptions para o AI SDK — Google Gemini.
+ * outputDimensionality e taskType (RETRIEVAL_QUERY vs RETRIEVAL_DOCUMENT).
  *
  * IMPORTANTE: Deve ser passado como `providerOptions: { ... }` no embed/embedMany
  */
@@ -129,28 +92,11 @@ function getProviderOptions(
   config: EmbeddingConfig,
   taskType: 'query' | 'document'
 ): Record<string, Record<string, string | number>> {
-  switch (config.provider) {
-    case 'google':
-      return {
-        google: {
-          outputDimensionality: config.dimensions,
-          taskType: taskType === 'query' ? 'RETRIEVAL_QUERY' : 'RETRIEVAL_DOCUMENT',
-        },
-      }
-
-    case 'openai':
-      // OpenAI text-embedding-3 suporta dimensões customizadas
-      if (config.model.includes('text-embedding-3')) {
-        return {
-          openai: {
-            dimensions: config.dimensions,
-          },
-        }
-      }
-      return {}
-
-    default:
-      return {}
+  return {
+    google: {
+      outputDimensionality: config.dimensions,
+      taskType: taskType === 'query' ? 'RETRIEVAL_QUERY' : 'RETRIEVAL_DOCUMENT',
+    },
   }
 }
 
@@ -297,7 +243,7 @@ export function chunkText(text: string, options: ChunkingOptions = {}): string[]
  * Converte embedding para formato pgvector
  *
  * IMPORTANTE: A coluna pgvector deve ter a mesma dimensão do modelo de embedding.
- * Google Gemini = 768, OpenAI small = 1536, etc.
+ * Google Gemini embedding-001 = 768 dimensões.
  * Não use padding - use a dimensão exata conforme a documentação do Supabase.
  */
 export function toPgVector(embedding: number[]): string {

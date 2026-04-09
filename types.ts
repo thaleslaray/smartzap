@@ -585,7 +585,7 @@ export interface InboxMessage {
 }
 
 // T004: AIAgent interface
-export type EmbeddingProvider = 'google' | 'openai' | 'voyage' | 'cohere';
+export type EmbeddingProvider = 'google';
 export type RerankProvider = 'cohere' | 'together';
 
 export interface AIAgent {

@@ -14,7 +14,6 @@ const SETTINGS_KEYS = {
   direct: 'ai_direct',
   prompts: 'ai_prompts',
   googleApiKey: 'google_api_key',
-  openaiApiKey: 'openai_api_key',
   // Chaves individuais para prompts de estratégia (fonte única de verdade: banco)
   strategyMarketing: 'strategyMarketing',
   strategyUtility: 'strategyUtility',
@@ -47,12 +46,9 @@ function normalizeRoutes(input?: Partial<AiRoutesConfig> | null): AiRoutesConfig
 function normalizeDirect(
   input?: Partial<Pick<AiDirectConfig, 'provider' | 'model'>> | null,
   googleApiKey?: string | null,
-  openaiApiKey?: string | null,
 ): AiDirectConfig {
-  const provider: AiProviderType =
-    input?.provider === 'google' || input?.provider === 'openai'
-      ? input.provider
-      : DEFAULT_AI_DIRECT.provider
+  // Sempre usa google — único provider suportado
+  const provider: AiProviderType = DEFAULT_AI_DIRECT.provider
 
   const model =
     typeof input?.model === 'string' && input.model.trim()
@@ -63,7 +59,6 @@ function normalizeDirect(
     provider,
     model,
     ...(googleApiKey ? { googleApiKey } : {}),
-    ...(openaiApiKey ? { openaiApiKey } : {}),
   }
 }
 
@@ -134,15 +129,14 @@ export async function getAiRoutesConfig(): Promise<AiRoutesConfig> {
 export async function getAiDirectConfig(): Promise<AiDirectConfig> {
   if (cachedDirect && isCacheValid()) return cachedDirect
 
-  const [rawDirect, googleApiKey, geminiApiKeyLegacy, openaiApiKey] = await Promise.all([
+  const [rawDirect, googleApiKey, geminiApiKeyLegacy] = await Promise.all([
     getSettingValue(SETTINGS_KEYS.direct),
     getSettingValue(SETTINGS_KEYS.googleApiKey),
     getSettingValue('gemini_api_key'), // retrocompatibilidade: chave pode estar salva com nome antigo
-    getSettingValue(SETTINGS_KEYS.openaiApiKey),
   ])
 
   const parsed = parseJsonSetting<Partial<Pick<AiDirectConfig, 'provider' | 'model'>>>(rawDirect, {})
-  cachedDirect = normalizeDirect(parsed, googleApiKey || geminiApiKeyLegacy, openaiApiKey)
+  cachedDirect = normalizeDirect(parsed, googleApiKey || geminiApiKeyLegacy)
   cacheTime = Date.now()
   return cachedDirect
 }

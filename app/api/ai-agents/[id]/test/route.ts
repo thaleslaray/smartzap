@@ -12,7 +12,6 @@ import { z } from 'zod'
 import { DEFAULT_MODEL_ID } from '@/lib/ai/model'
 import { getAiDirectConfig } from '@/lib/ai/ai-center-config'
 import { createGoogleGenerativeAI } from '@ai-sdk/google'
-import { createOpenAI } from '@ai-sdk/openai'
 import {
   findRelevantContent,
   buildEmbeddingConfigFromAgent,
@@ -23,9 +22,6 @@ import type { AIAgent, EmbeddingProvider } from '@/types'
 // Mapeamento de provider para chave de API na tabela settings
 const EMBEDDING_API_KEY_MAP: Record<EmbeddingProvider, { settingKey: string; envVar: string }> = {
   google: { settingKey: 'google_api_key', envVar: 'GOOGLE_GENERATIVE_AI_API_KEY' },
-  openai: { settingKey: 'openai_api_key', envVar: 'OPENAI_API_KEY' },
-  voyage: { settingKey: 'voyage_api_key', envVar: 'VOYAGE_API_KEY' },
-  cohere: { settingKey: 'cohere_api_key', envVar: 'COHERE_API_KEY' },
 }
 
 // =============================================================================
@@ -150,14 +146,8 @@ export async function POST(request: NextRequest, context: RouteContext) {
     // Criar modelo direto via provider
     const config = await getAiDirectConfig()
     const targetModelId = agent.model || config.model || DEFAULT_MODEL_ID
-    let baseModel
-    if (config.provider === 'google') {
-        if (!config.googleApiKey) throw new Error('Chave Google não configurada. Acesse Configurações → IA.')
-        baseModel = createGoogleGenerativeAI({ apiKey: config.googleApiKey })(targetModelId)
-    } else {
-        if (!config.openaiApiKey) throw new Error('Chave OpenAI não configurada. Acesse Configurações → IA.')
-        baseModel = createOpenAI({ apiKey: config.openaiApiKey })(targetModelId)
-    }
+    if (!config.googleApiKey) throw new Error('Chave Google não configurada. Acesse Configurações → IA.')
+    const baseModel = createGoogleGenerativeAI({ apiKey: config.googleApiKey })(targetModelId)
 
     // Create model with DevTools support
     const model = await withDevTools(baseModel, { name: `agente:${agent.name}` })

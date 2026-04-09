@@ -1,6 +1,5 @@
 import { generateText, Output } from 'ai'
 import { createGoogleGenerativeAI } from '@ai-sdk/google'
-import { createOpenAI } from '@ai-sdk/openai'
 import { JudgmentSchema, type Judgment } from '../schemas/template-schemas'
 import { buildUtilityJudgePrompt } from '../prompts/utility-judge'
 import { getAiDirectConfig, getAiPromptsConfig } from '../ai-center-config'
@@ -9,7 +8,7 @@ import { DEFAULT_MODEL_ID } from '../model'
 // ============================================================================
 // AI JUDGE SERVICE
 // Usa LLM para analisar se template será aprovado como UTILITY pela Meta
-// Usa providers diretos (Google/OpenAI) com chave do banco
+// Usa Google Gemini com chave do banco
 // ============================================================================
 
 export interface JudgeOptions {
@@ -28,16 +27,9 @@ export async function judgeTemplate(
     const config = await getAiDirectConfig()
     const targetModelId = options.model || config.model || DEFAULT_MODEL_ID
 
-    let model
-    if (config.provider === 'google') {
-        if (!config.googleApiKey) throw new Error('Chave Google não configurada. Acesse Configurações → IA.')
-        const google = createGoogleGenerativeAI({ apiKey: config.googleApiKey })
-        model = google(targetModelId)
-    } else {
-        if (!config.openaiApiKey) throw new Error('Chave OpenAI não configurada. Acesse Configurações → IA.')
-        const openai = createOpenAI({ apiKey: config.openaiApiKey })
-        model = openai(targetModelId)
-    }
+    if (!config.googleApiKey) throw new Error('Chave Google não configurada. Acesse Configurações → IA.')
+    const google = createGoogleGenerativeAI({ apiKey: config.googleApiKey })
+    const model = google(targetModelId)
 
     console.log(`[AI_JUDGE] Using model: ${targetModelId} (provider: ${config.provider})`)
 

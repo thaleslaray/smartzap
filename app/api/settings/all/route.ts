@@ -187,23 +187,21 @@ async function fetchAISettings(): Promise<AISettingsData> {
     ?.from('settings')
     .select('key, value')
     .in('key', [
-      'ai_direct', 'google_api_key', 'openai_api_key',
+      'ai_direct', 'google_api_key',
       'ai_routes', 'ai_prompts',
     ]) || { data: null }
 
   const settingsMap = new Map(data?.map(s => [s.key, s.value]) || [])
 
   const directRaw = parseJsonSetting(settingsMap.get('ai_direct') as string | null, { provider: 'google', model: '' })
-  const savedProvider = (directRaw.provider as string) || 'google'
   const savedModel = (directRaw.model as string) || ''
 
   const googleKey = (settingsMap.get('google_api_key') as string) || process.env.GOOGLE_GENERATIVE_AI_API_KEY || process.env.GEMINI_API_KEY || ''
-  const openaiKey = (settingsMap.get('openai_api_key') as string) || process.env.OPENAI_API_KEY || ''
 
   const getPreview = (key: string) => key ? `${key.substring(0, 4)}...${key.substring(key.length - 4)}` : null
 
   return {
-    provider: savedProvider,
+    provider: 'google',
     model: savedModel,
     providers: {
       google: {
@@ -211,17 +209,10 @@ async function fetchAISettings(): Promise<AISettingsData> {
         source: settingsMap.get('google_api_key') ? 'database' : (googleKey ? 'env' : 'none'),
         tokenPreview: getPreview(googleKey),
       },
-      openai: {
-        isConfigured: !!openaiKey,
-        source: settingsMap.get('openai_api_key') ? 'database' : (openaiKey ? 'env' : 'none'),
-        tokenPreview: getPreview(openaiKey),
-      },
     },
-    isConfigured: savedProvider === 'google' ? !!googleKey : !!openaiKey,
-    source: savedProvider === 'google'
-      ? (settingsMap.get('google_api_key') ? 'database' : (googleKey ? 'env' : 'none'))
-      : (settingsMap.get('openai_api_key') ? 'database' : (openaiKey ? 'env' : 'none')),
-    tokenPreview: savedProvider === 'google' ? getPreview(googleKey) : getPreview(openaiKey),
+    isConfigured: !!googleKey,
+    source: settingsMap.get('google_api_key') ? 'database' : (googleKey ? 'env' : 'none'),
+    tokenPreview: getPreview(googleKey),
     routes: prepareAiRoutesUpdate(parseJsonSetting(settingsMap.get('ai_routes') as string | null, DEFAULT_AI_ROUTES)),
     prompts: prepareAiPromptsUpdate(parseJsonSetting(settingsMap.get('ai_prompts') as string | null, DEFAULT_AI_PROMPTS)),
   }

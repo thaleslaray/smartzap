@@ -38,21 +38,6 @@ async function validateGoogleKey(apiKey: string): Promise<ValidationResult> {
   }
 }
 
-async function validateOpenAIKey(apiKey: string): Promise<ValidationResult> {
-  try {
-    const res = await fetch('https://api.openai.com/v1/models?limit=1', {
-      headers: { Authorization: `Bearer ${apiKey}` },
-    })
-    if (res.ok) return { valid: true }
-    if (res.status === 401) return { valid: false, error: 'Chave OpenAI inválida. Verifique se a chave está correta e ativa.' }
-    if (res.status === 403) return { valid: false, error: 'Acesso negado. A chave pode estar desativada.' }
-    if (res.status === 429) return { valid: false, error: 'Quota excedida. Verifique seu plano OpenAI.' }
-    return { valid: false, error: `Erro ao validar chave OpenAI: HTTP ${res.status}` }
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'Erro desconhecido'
-    return { valid: false, error: `Erro ao validar chave OpenAI: ${message}` }
-  }
-}
 
 function parseJsonSetting<T>(value: string | null, fallback: T): T {
   if (!value) return fallback
@@ -78,7 +63,6 @@ export async function GET() {
       .in('key', [
         'ai_direct',
         'google_api_key',
-        'openai_api_key',
         'ai_routes',
         'ai_prompts',
         'ocr_gemini_model',
@@ -110,7 +94,6 @@ export async function GET() {
     })
 
     const googleApiKey = (settingsMap.get('google_api_key') as string) || ''
-    const openaiApiKey = (settingsMap.get('openai_api_key') as string) || ''
     const ocrGeminiModel = (settingsMap.get('ocr_gemini_model') as string) || DEFAULT_OCR_MODEL
 
     return NextResponse.json({
@@ -123,11 +106,6 @@ export async function GET() {
           isConfigured: !!googleApiKey,
           source: googleApiKey ? 'database' : 'none',
           tokenPreview: googleApiKey ? getPreview(googleApiKey) : null,
-        },
-        openai: {
-          isConfigured: !!openaiApiKey,
-          source: openaiApiKey ? 'database' : 'none',
-          tokenPreview: openaiApiKey ? getPreview(openaiApiKey) : null,
         },
       },
       ocr: {
@@ -152,13 +130,12 @@ export async function POST(request: NextRequest) {
       provider,
       model,
       google_api_key,
-      openai_api_key,
       routes,
       prompts,
       ocr_gemini_model,
     } = body
 
-    if (!provider && !model && !google_api_key && !openai_api_key && !routes && !prompts && !ocr_gemini_model) {
+    if (!provider && !model && !google_api_key && !routes && !prompts && !ocr_gemini_model) {
       return NextResponse.json({ error: 'At least one field is required' }, { status: 400 })
     }
 
@@ -182,15 +159,6 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: result.error }, { status: 400 })
       }
       updates.push({ key: 'google_api_key', value: google_api_key, updated_at: now })
-    }
-
-    // Valida e salva chave OpenAI
-    if (openai_api_key) {
-      const result = await validateOpenAIKey(openai_api_key)
-      if (!result.valid) {
-        return NextResponse.json({ error: result.error }, { status: 400 })
-      }
-      updates.push({ key: 'openai_api_key', value: openai_api_key, updated_at: now })
     }
 
     // Rotas de IA
@@ -261,14 +229,14 @@ export async function DELETE(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const provider = searchParams.get('provider')
 
-    if (provider !== 'google' && provider !== 'openai') {
+    if (provider !== 'google') {
       return NextResponse.json(
-        { error: 'Provider inválido. Use "google" ou "openai".' },
+        { error: 'Provider inválido. Use "google".' },
         { status: 400 }
       )
     }
 
-    const keyName = provider === 'google' ? 'google_api_key' : 'openai_api_key'
+    const keyName = 'google_api_key'
 
     const { error } = await supabase.admin
       ?.from('settings')

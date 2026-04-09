@@ -34,12 +34,10 @@ export interface AISettingsInfo {
   isConfigured: boolean;
   source: 'database' | 'env' | 'none';
   tokenPreview?: string | null;
-  provider?: 'google' | 'openai' | 'anthropic';
+  provider?: 'google';
   model?: string;
   providers?: {
     google: { isConfigured: boolean; source: 'database' | 'env' | 'none'; tokenPreview?: string | null };
-    openai: { isConfigured: boolean; source: 'database' | 'env' | 'none'; tokenPreview?: string | null };
-    anthropic: { isConfigured: boolean; source: 'database' | 'env' | 'none'; tokenPreview?: string | null };
   };
 }
 

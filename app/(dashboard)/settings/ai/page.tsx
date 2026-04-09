@@ -139,15 +139,11 @@ const TEMPLATE_STRATEGIES: StrategyItem[] = [
   },
 ]
 
-// URLs para criação de chaves de API de cada provider
+// URL para criação de chave de API do Google
 const API_KEY_URLS: Record<AIProvider, { url: string; label: string }> = {
   google: {
     url: 'https://aistudio.google.com/apikey',
     label: 'Google AI Studio',
-  },
-  openai: {
-    url: 'https://platform.openai.com/api-keys',
-    label: 'OpenAI Platform',
   },
 }
 
@@ -497,7 +493,6 @@ export default function AICenterPage() {
     isSavingOcr,
     isStrategiesOpen,
     handleSave,
-    handleProviderSelect,
     handleModelChange,
     handleOcrGeminiModelChange,
     handlePromptChange,
@@ -588,63 +583,6 @@ export default function AICenterPage() {
       <AIGatewayPanel />
 
       <div className="space-y-6">
-        <section className="glass-panel rounded-2xl p-6">
-          <div className="space-y-1">
-            <h3 className="text-lg font-semibold text-[var(--ds-text-primary)]">Modelo principal</h3>
-            <p className="text-sm text-[var(--ds-text-secondary)]">
-              Escolha o provider e modelo para produção.
-            </p>
-          </div>
-
-          <div className="mt-5 space-y-4">
-            {/* Provider selector */}
-            <div className="flex gap-3">
-              {(['google', 'openai'] as const).map((p) => (
-                <button
-                  key={p}
-                  type="button"
-                  onClick={() => { handleProviderSelect(p); void fetchModels(p) }}
-                  className={`flex-1 rounded-xl border px-4 py-3 text-sm font-medium transition ${
-                    provider === p
-                      ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300'
-                      : 'border-[var(--ds-border-default)] bg-[var(--ds-bg-elevated)] text-[var(--ds-text-secondary)] hover:bg-[var(--ds-bg-hover)]'
-                  }`}
-                >
-                  {p === 'google' ? '✨ Google Gemini' : '⚡ OpenAI'}
-                </button>
-              ))}
-            </div>
-
-            {/* Model selector */}
-            <div>
-              <label className="text-xs text-[var(--ds-text-muted)]">Modelo</label>
-              <div className="relative mt-2">
-                {modelsLoading ? (
-                  <div className="flex h-10 items-center gap-2 rounded-lg border border-[var(--ds-border-default)] bg-[var(--ds-bg-surface)] px-3 text-sm text-[var(--ds-text-muted)]">
-                    <Loader2 className="size-4 animate-spin" />
-                    Carregando modelos...
-                  </div>
-                ) : (
-                  <select
-                    value={model}
-                    onChange={(e) => handleModelChange(e.target.value)}
-                    onFocus={() => { if (models.length === 0) void fetchModels(provider) }}
-                    className="w-full rounded-lg border border-[var(--ds-border-default)] bg-[var(--ds-bg-surface)] px-3 py-2 text-sm text-[var(--ds-text-primary)] outline-none transition focus:border-emerald-500/40"
-                  >
-                    {models.length > 0 ? (
-                      models.map((m) => (
-                        <option key={m.id} value={m.id}>{m.name}</option>
-                      ))
-                    ) : (
-                      <option value={model}>{model}</option>
-                    )}
-                  </select>
-                )}
-              </div>
-            </div>
-          </div>
-        </section>
-
         {/* OCR Configuration Section */}
         <section className="glass-panel rounded-2xl p-6">
           <div className="flex flex-wrap items-center justify-between gap-4">
@@ -723,8 +661,8 @@ export default function AICenterPage() {
         {/* Mem0 Memory Section */}
         <Mem0Panel />
 
-        {/* Helicone Observability Section (usado quando Gateway desabilitado) */}
-        <HeliconePanel />
+        {/* Helicone Observability Section — só visível em dev mode */}
+        {isDevMode && <HeliconePanel />}
 
         {/* Template Strategies Section - Collapsible */}
         <section className="relative overflow-hidden rounded-2xl border border-[var(--ds-border-default)] bg-gradient-to-br from-[var(--ds-bg-elevated)] to-[var(--ds-bg-surface)]">

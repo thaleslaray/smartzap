@@ -2,7 +2,7 @@
  * Chat Agent - Tool-based RAG (Vercel AI SDK pattern)
  *
  * Agente de chat que processa conversas do inbox usando IA.
- * Suporta Google Gemini e OpenAI diretamente com chave do usuário.
+ * Usa Google Gemini diretamente com chave do usuário.
  *
  * Usa RAG próprio com Supabase pgvector seguindo o padrão recomendado pela Vercel:
  * - O LLM recebe uma tool `searchKnowledgeBase` e DECIDE quando usá-la
@@ -309,7 +309,6 @@ export async function processChatAgent(
   // Dynamic imports - required for background execution context
   const { generateText, tool, stepCountIs } = await import('ai')
   const { createGoogleGenerativeAI } = await import('@ai-sdk/google')
-  const { createOpenAI } = await import('@ai-sdk/openai')
   const { withDevTools } = await import('@/lib/ai/devtools')
   const {
     findRelevantContent,
@@ -351,12 +350,12 @@ export async function processChatAgent(
     mem0Enabled = false
   }
 
-  // Obter configuração de provider direto (Google / OpenAI)
+  // Obter configuração de provider direto (Google Gemini)
   const directConfig = await getAiDirectConfig()
-  if (!directConfig.googleApiKey && !directConfig.openaiApiKey) {
+  if (!directConfig.googleApiKey) {
     return {
       success: false,
-      error: 'Nenhuma chave de API configurada. Acesse Configurações → IA.',
+      error: 'Chave Google não configurada. Acesse Configurações → IA.',
       latencyMs: Date.now() - startTime,
     }
   }
@@ -364,23 +363,11 @@ export async function processChatAgent(
   const modelId = agent.model || directConfig.model || DEFAULT_MODEL_ID
 
   // Criar instância do modelo com a chave do usuário
-  let rawModel
-  if (directConfig.provider === 'openai' && directConfig.openaiApiKey) {
-    const openai = createOpenAI({ apiKey: directConfig.openaiApiKey })
-    rawModel = openai(modelId)
-  } else if (directConfig.googleApiKey) {
-    const google = createGoogleGenerativeAI({ apiKey: directConfig.googleApiKey })
-    rawModel = google(modelId)
-  } else {
-    return {
-      success: false,
-      error: `Chave ${directConfig.provider === 'openai' ? 'OpenAI' : 'Google'} não configurada. Acesse Configurações → IA.`,
-      latencyMs: Date.now() - startTime,
-    }
-  }
+  const google = createGoogleGenerativeAI({ apiKey: directConfig.googleApiKey })
+  const rawModel = google(modelId)
 
   const model = await withDevTools(rawModel, { name: `agente:${agent.name}` })
-  console.log(`[chat-agent] Using ${directConfig.provider}/${modelId}`)
+  console.log(`[chat-agent] Using google/${modelId}`)
 
   // Check if agent has indexed content in pgvector
   let hasKnowledgeBase = false

@@ -1,5 +1,5 @@
 /**
- * Serviço de IA unificado — providers diretos (Google Gemini / OpenAI).
+ * Serviço de IA unificado — Google Gemini.
  *
  * Usa as chaves de API do próprio usuário, armazenadas no Supabase.
  * Cada cliente paga diretamente ao provider — sem intermediação da Vercel.
@@ -11,7 +11,6 @@
 
 import { generateText as vercelGenerateText, streamText as vercelStreamText, type ModelMessage } from 'ai'
 import { createGoogleGenerativeAI } from '@ai-sdk/google'
-import { createOpenAI } from '@ai-sdk/openai'
 
 import { getAiDirectConfig } from './ai-center-config'
 import type { AiDirectConfig } from './ai-center-defaults'
@@ -58,25 +57,17 @@ export interface GenerateTextResult {
 // =============================================================================
 
 /**
- * Cria a instância do modelo de linguagem com base na configuração de provider.
- * Lança erro se a chave do provider não estiver configurada.
+ * Cria a instância do modelo de linguagem Google Gemini.
+ * Lança erro se a chave não estiver configurada.
  */
 function createModelInstance(config: AiDirectConfig, modelOverride?: string) {
     const modelId = modelOverride || config.model
 
-    if (config.provider === 'google') {
-        if (!config.googleApiKey) {
-            throw new Error('Chave Google não configurada. Acesse Configurações → IA e insira sua Google API Key.')
-        }
-        const google = createGoogleGenerativeAI({ apiKey: config.googleApiKey })
-        return google(modelId)
+    if (!config.googleApiKey) {
+        throw new Error('Chave Google não configurada. Acesse Configurações → IA e insira sua Google API Key.')
     }
-
-    if (!config.openaiApiKey) {
-        throw new Error('Chave OpenAI não configurada. Acesse Configurações → IA e insira sua OpenAI API Key.')
-    }
-    const openai = createOpenAI({ apiKey: config.openaiApiKey })
-    return openai(modelId)
+    const google = createGoogleGenerativeAI({ apiKey: config.googleApiKey })
+    return google(modelId)
 }
 
 // =============================================================================
@@ -126,7 +117,7 @@ function buildArgs(
 // =============================================================================
 
 /**
- * Gera texto usando o provider configurado (Google Gemini ou OpenAI).
+ * Gera texto usando Google Gemini.
  *
  * A chave de API é lida do Supabase — configurada pelo usuário nas settings de IA.
  */

@@ -2,12 +2,12 @@
  * AI Providers Configuration
  *
  * Lista mínima de fallback. Modelos reais são carregados dinamicamente
- * via GET /api/ai/models?provider=google|openai após o usuário configurar a chave.
+ * via GET /api/ai/models após o usuário configurar a chave.
  *
- * Providers suportados: Google Gemini e OpenAI.
+ * Provider suportado: Google Gemini.
  */
 
-export type AIProvider = 'google' | 'openai';
+export type AIProvider = 'google';
 
 export interface AIModel {
     id: string;
@@ -31,15 +31,6 @@ export const AI_PROVIDERS: AIProviderConfig[] = [
             { id: 'gemini-flash-latest', name: 'Gemini Flash (sempre atual)', description: 'Alias auto-atualizado — recomendado' },
             { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', description: 'Rápido e eficiente' },
             { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', description: 'Melhor para tarefas complexas' },
-        ],
-    },
-    {
-        id: 'openai',
-        name: 'OpenAI (GPT)',
-        icon: '🤖',
-        models: [
-            { id: 'gpt-4o', name: 'GPT-4o', description: 'Modelo principal' },
-            { id: 'gpt-4o-mini', name: 'GPT-4o Mini', description: 'Rápido e econômico' },
         ],
     },
 ];

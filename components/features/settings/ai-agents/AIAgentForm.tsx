@@ -553,59 +553,13 @@ export function AIAgentForm({
                   <div>
                     <span className="text-sm font-medium">Configuração RAG</span>
                     <p className="text-xs text-[var(--ds-text-muted)]">
-                      {embeddingProvider === 'google' ? 'Google Gemini' : 'OpenAI'} • {embeddingDimensions} dimensões
+                      Google Gemini • {embeddingDimensions} dimensões
                     </p>
                   </div>
                 </div>
                 <Search className={`h-4 w-4 text-[var(--ds-text-muted)] transition-transform ${ragConfigOpen ? 'rotate-90' : ''}`} />
               </CollapsibleTrigger>
               <CollapsibleContent className="mt-3 space-y-4 rounded-lg border border-[var(--ds-border-default)] bg-[var(--ds-bg-elevated)] p-4">
-                {/* Embedding Provider */}
-                <div className="space-y-2">
-                  <Label htmlFor="embeddingProvider" className="text-sm">
-                    Provider de Embedding
-                  </Label>
-                  <Select
-                    value={embeddingProvider}
-                    onValueChange={(v) => handleEmbeddingProviderChange(v as EmbeddingProvider)}
-                    disabled={embeddingProvidersLoading}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder={embeddingProvidersLoading ? "Carregando..." : "Selecione um provider"} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {(availableEmbeddingProviders.length > 0 ? availableEmbeddingProviders : EMBEDDING_PROVIDERS).map((p) => {
-                        const isAvailable = 'available' in p ? p.available : true
-                        return (
-                          <SelectItem
-                            key={p.id}
-                            value={p.id}
-                            disabled={!isAvailable}
-                            className={!isAvailable ? 'opacity-50' : ''}
-                          >
-                            <div className="flex items-center gap-2">
-                              <span>{p.name}</span>
-                              {!isAvailable && (
-                                <span className="flex items-center gap-1 text-[10px] text-amber-400">
-                                  <AlertCircle className="h-3 w-3" />
-                                  Sem API key
-                                </span>
-                              )}
-                            </div>
-                          </SelectItem>
-                        )
-                      })}
-                    </SelectContent>
-                  </Select>
-                  {/* Warning if selected provider is not available */}
-                  {availableEmbeddingProviders.length > 0 && !availableEmbeddingProviders.find(p => p.id === embeddingProvider)?.available && (
-                    <div className="flex items-center gap-2 rounded-md bg-amber-500/10 p-2 text-xs text-amber-400">
-                      <AlertCircle className="h-4 w-4 flex-shrink-0" />
-                      <span>API key do {EMBEDDING_PROVIDERS.find(p => p.id === embeddingProvider)?.name} não configurada. Configure em Configurações → IA.</span>
-                    </div>
-                  )}
-                </div>
-
                 {/* Embedding Model */}
                 <div className="space-y-2">
                   <Label htmlFor="embeddingModel" className="text-sm">

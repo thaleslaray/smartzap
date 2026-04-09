@@ -6,17 +6,16 @@ import { toast } from 'sonner';
 import type { AIModelInfo } from '@/app/api/ai/models/route';
 
 /**
- * AIGatewayPanel — Configuração de providers de IA (Google Gemini / OpenAI)
+ * AIGatewayPanel — Configuração de IA (Google Gemini)
  *
- * Cada cliente usa sua própria chave de API, paga diretamente ao provider.
- * Sem intermediação do Vercel AI Gateway.
+ * Cada cliente usa sua própria chave de API, paga diretamente ao Google.
  */
 
 // =============================================================================
 // TIPOS
 // =============================================================================
 
-type AiProvider = 'google' | 'openai';
+type AiProvider = 'google';
 
 type KeyStatus = 'idle' | 'saving' | 'valid' | 'invalid';
 
@@ -33,7 +32,7 @@ interface ProviderState {
 }
 
 // =============================================================================
-// CONFIGURAÇÃO ESTÁTICA DOS PROVIDERS
+// CONFIGURAÇÃO DO PROVIDER
 // =============================================================================
 
 const PROVIDERS: { id: AiProvider; label: string; icon: string; color: string; placeholder: string }[] = [
@@ -44,23 +43,14 @@ const PROVIDERS: { id: AiProvider; label: string; icon: string; color: string; p
     color: 'blue',
     placeholder: 'AIza...',
   },
-  {
-    id: 'openai',
-    label: 'OpenAI',
-    icon: '🤖',
-    color: 'emerald',
-    placeholder: 'sk-...',
-  },
 ];
 
 const COLOR_MAP: Record<string, string> = {
   blue: 'border-blue-500/40 bg-blue-500/10 text-blue-300',
-  emerald: 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300',
 };
 
 const ACTIVE_COLOR: Record<string, string> = {
   blue: 'border-blue-500/50 bg-blue-500/20 ring-1 ring-blue-500/30',
-  emerald: 'border-emerald-500/50 bg-emerald-500/20 ring-1 ring-emerald-500/30',
 };
 
 // =============================================================================
@@ -69,17 +59,11 @@ const ACTIVE_COLOR: Record<string, string> = {
 
 export function AIGatewayPanel() {
   const [loading, setLoading] = useState(true);
-  const [activeProvider, setActiveProvider] = useState<AiProvider>('google');
   const [activeModel, setActiveModel] = useState('');
   const [saving, setSaving] = useState(false);
 
   const [providerState, setProviderState] = useState<Record<AiProvider, ProviderState>>({
     google: {
-      isConfigured: false, tokenPreview: null, keyStatus: 'idle',
-      keyDraft: '', showKey: false, models: [], modelsLoading: false,
-      modelSearch: '', showModelList: false,
-    },
-    openai: {
       isConfigured: false, tokenPreview: null, keyStatus: 'idle',
       keyDraft: '', showKey: false, models: [], modelsLoading: false,
       modelSearch: '', showModelList: false,
@@ -100,19 +84,12 @@ export function AIGatewayPanel() {
       const res = await fetch('/api/settings/ai');
       const data = await res.json();
 
-      if (data.provider) setActiveProvider(data.provider as AiProvider);
       if (data.model) setActiveModel(data.model);
 
       if (data.keys?.google) {
         updateProvider('google', {
           isConfigured: data.keys.google.isConfigured,
           tokenPreview: data.keys.google.tokenPreview,
-        });
-      }
-      if (data.keys?.openai) {
-        updateProvider('openai', {
-          isConfigured: data.keys.openai.isConfigured,
-          tokenPreview: data.keys.openai.tokenPreview,
         });
       }
     } catch (error) {
@@ -151,7 +128,7 @@ export function AIGatewayPanel() {
 
     updateProvider(id, { keyStatus: 'saving' });
     try {
-      const body = id === 'google' ? { google_api_key: key } : { openai_api_key: key };
+      const body = { google_api_key: key };
       const res = await fetch('/api/settings/ai', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -161,7 +138,7 @@ export function AIGatewayPanel() {
       if (!res.ok) throw new Error(data.error || 'Erro ao salvar');
 
       updateProvider(id, { keyStatus: 'valid', keyDraft: '', isConfigured: true });
-      toast.success(`Chave ${id === 'google' ? 'Google' : 'OpenAI'} salva`);
+      toast.success('Chave Google salva');
       await loadConfig();
       // Carrega modelos com a nova chave
       void fetchModels(id);
@@ -177,7 +154,7 @@ export function AIGatewayPanel() {
       const res = await fetch(`/api/settings/ai?provider=${id}`, { method: 'DELETE' });
       if (!res.ok) throw new Error('Erro ao remover chave');
       updateProvider(id, { isConfigured: false, tokenPreview: null, models: [], keyStatus: 'idle' });
-      toast.success(`Chave ${id === 'google' ? 'Google' : 'OpenAI'} removida`);
+      toast.success('Chave Google removida');
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Erro ao remover chave';
       toast.error(message);
@@ -195,31 +172,10 @@ export function AIGatewayPanel() {
       });
       if (!res.ok) throw new Error('Erro ao salvar modelo');
       setActiveModel(modelId);
-      if (providerId !== activeProvider) setActiveProvider(providerId);
       updateProvider(providerId, { showModelList: false, modelSearch: '' });
       toast.success('Modelo atualizado');
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Erro ao salvar modelo';
-      toast.error(message);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleSelectProvider = async (id: AiProvider) => {
-    setSaving(true);
-    try {
-      const res = await fetch('/api/settings/ai', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ provider: id }),
-      });
-      if (!res.ok) throw new Error('Erro ao salvar provider');
-      setActiveProvider(id);
-      setActiveModel('');
-      toast.success(`Provider alterado para ${id === 'google' ? 'Google' : 'OpenAI'}`);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Erro ao salvar provider';
       toast.error(message);
     } finally {
       setSaving(false);
@@ -256,10 +212,10 @@ export function AIGatewayPanel() {
       <div className="space-y-1">
         <div className="flex items-center gap-2 text-sm font-semibold text-[var(--ds-text-primary)]">
           <Cpu className="size-4 text-emerald-400" />
-          Providers de IA
+          Google Gemini
         </div>
         <p className="text-sm text-[var(--ds-text-secondary)]">
-          Configure suas chaves de API. Cada cliente paga diretamente ao provider.
+          Configure sua chave de API do Google. Você paga diretamente ao Google.
         </p>
       </div>
 
@@ -267,7 +223,6 @@ export function AIGatewayPanel() {
       <div className="space-y-4">
         {PROVIDERS.map(({ id, label, icon, color, placeholder }) => {
           const ps = providerState[id];
-          const isActive = activeProvider === id;
           const filteredModels = ps.modelSearch
             ? ps.models.filter(
                 (m) =>
@@ -279,11 +234,7 @@ export function AIGatewayPanel() {
           return (
             <div
               key={id}
-              className={`rounded-xl border p-4 transition ${
-                isActive
-                  ? ACTIVE_COLOR[color]
-                  : 'border-[var(--ds-border-default)] bg-[var(--ds-bg-elevated)]'
-              }`}
+              className={`rounded-xl border p-4 transition ${ACTIVE_COLOR[color]}`}
             >
               {/* Card header */}
               <div className="flex items-center justify-between">
@@ -297,18 +248,7 @@ export function AIGatewayPanel() {
                   )}
                 </div>
 
-                {/* Active provider button */}
-                {!isActive && ps.isConfigured && (
-                  <button
-                    type="button"
-                    disabled={saving}
-                    onClick={() => handleSelectProvider(id)}
-                    className="rounded-lg border border-[var(--ds-border-default)] px-3 py-1 text-xs text-[var(--ds-text-secondary)] transition hover:bg-[var(--ds-bg-hover)] disabled:opacity-50"
-                  >
-                    Usar este
-                  </button>
-                )}
-                {isActive && (
+                {ps.isConfigured && (
                   <span className={`rounded-full border px-2.5 py-1 text-xs font-medium ${COLOR_MAP[color]}`}>
                     Ativo
                   </span>
@@ -381,7 +321,7 @@ export function AIGatewayPanel() {
                     <div className="text-left">
                       <div className="text-[11px] text-[var(--ds-text-muted)]">Modelo ativo</div>
                       <div className="text-xs font-medium text-[var(--ds-text-primary)]">
-                        {isActive && activeModel
+                        {activeModel
                           ? (ps.models.find((m) => m.id === activeModel)?.name ?? activeModel)
                           : 'Selecionar modelo'}
                       </div>
@@ -428,7 +368,7 @@ export function AIGatewayPanel() {
                                   <ModelRow
                                     key={m.id}
                                     model={m}
-                                    isSelected={isActive && activeModel === m.id}
+                                    isSelected={activeModel === m.id}
                                     disabled={saving}
                                     onSelect={(modelId) => handleSelectModel(modelId, id)}
                                   />
@@ -448,7 +388,7 @@ export function AIGatewayPanel() {
                                   <ModelRow
                                     key={m.id}
                                     model={m}
-                                    isSelected={isActive && activeModel === m.id}
+                                    isSelected={activeModel === m.id}
                                     disabled={saving}
                                     onSelect={(modelId) => handleSelectModel(modelId, id)}
                                   />
