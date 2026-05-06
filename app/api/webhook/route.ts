@@ -584,10 +584,26 @@ export async function POST(request: NextRequest) {
   try {
     const entries = body.entry || []
 
+    // Carrega o phoneNumberId configurado para filtrar eventos de outros números
+    const credentials = await getWhatsAppCredentials()
+    const configuredPhoneNumberId = credentials?.phoneNumberId || process.env.WHATSAPP_PHONE_ID || null
+
+    if (!configuredPhoneNumberId) {
+      console.warn('[Webhook] ⚠️ WHATSAPP_PHONE_ID não configurado — filtragem por número desativada.')
+    } else {
+      console.log(`[Webhook] 🔒 Filtrando eventos para phone_number_id=${configuredPhoneNumberId}`)
+    }
+
     for (const entry of entries) {
       const changes = entry.changes || []
 
       for (const change of changes) {
+        // Ignora eventos de outros números
+        const eventPhoneNumberId = change?.value?.metadata?.phone_number_id || null
+        if (configuredPhoneNumberId && eventPhoneNumberId && eventPhoneNumberId !== configuredPhoneNumberId) {
+          console.log(`⏭️ Webhook ignorado: phone_number_id=${eventPhoneNumberId} não corresponde ao configurado=${configuredPhoneNumberId}`)
+          continue
+        }
         // =========================================================
         // Template Status Updates (Meta)
         // =========================================================
