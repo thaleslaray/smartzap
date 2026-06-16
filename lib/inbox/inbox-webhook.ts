@@ -102,6 +102,26 @@ export async function handleInboundMessage(
   const normalizedPhone = normalizePhoneNumber(payload.from)
   const supabase = getSupabaseAdmin()
 
+  // Dedup: o Meta reenvia o webhook (retry) com o mesmo whatsapp_message_id.
+  // Sem este guard, a mesma mensagem inbound é persistida 2x e a IA é disparada 2x.
+  // Roda antes do RPC e do fallback legacy, cobrindo ambos os caminhos.
+  if (payload.messageId) {
+    try {
+      const existing = await inboxDb.findMessageByWhatsAppId(payload.messageId)
+      if (existing) {
+        console.log(`🔁 [INBOX] Mensagem duplicada ignorada (whatsapp_message_id=${payload.messageId})`)
+        return {
+          conversationId: existing.conversation_id,
+          messageId: existing.id,
+          triggeredAI: false,
+        }
+      }
+    } catch (dedupError) {
+      // Fail-open: se a checagem falhar, processa normalmente (melhor duplicar que perder mensagem).
+      console.warn('[Inbox] Checagem de dedup falhou, processando normalmente:', dedupError)
+    }
+  }
+
   // Tenta usar RPC otimizada (V2)
   // Fix aplicado em 20260203000000_fix_process_inbound_message_types.sql
   if (supabase) {
