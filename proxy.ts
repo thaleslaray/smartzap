@@ -121,13 +121,20 @@ export async function proxy(request: NextRequest) {
     // API Routes - Use API Key authentication
     // ==========================================================================
     if (pathname.startsWith('/api/')) {
+        // Subpaths que casam um prefixo público mas NÃO devem ser públicos
+        // (ex.: /api/webhook/info expõe o verify token + metadados de deploy).
+        const PRIVATE_API_OVERRIDES = ['/api/webhook/info']
+        const isPrivateOverride = PRIVATE_API_OVERRIDES.some(
+            p => pathname === p || pathname.startsWith(`${p}/`)
+        )
+
         // Auth endpoints are always public
-        if (PUBLIC_API_ROUTES.some(route => pathname.startsWith(route))) {
+        if (!isPrivateOverride && PUBLIC_API_ROUTES.some(route => pathname.startsWith(route))) {
             return NextResponse.next()
         }
 
         // Public endpoints don't require authentication
-        if (isPublicEndpoint(pathname)) {
+        if (!isPrivateOverride && isPublicEndpoint(pathname)) {
             return NextResponse.next()
         }
 

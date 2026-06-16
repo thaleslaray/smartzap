@@ -30,6 +30,7 @@ import { shouldProcessWhatsAppStatusEvent } from '@/lib/whatsapp-webhook-dedupe'
 
 
 import { getWhatsAppCredentials } from '@/lib/whatsapp-credentials'
+import { getMetaAppCredentials } from '@/lib/meta-app-credentials'
 import { applyFlowMappingToContact } from '@/lib/flow-mapping'
 import { settingsDb } from '@/lib/supabase-db'
 import { ensureWorkflowRecord, getCompanyId } from '@/lib/builder/workflow-db'
@@ -49,7 +50,7 @@ async function getWhatsAppAccessToken(): Promise<string | null> {
 }
 
 // Get or generate webhook verify token (Supabase settings preferred, env var fallback)
-import { getVerifyToken } from '@/lib/verify-token'
+import { getVerifyToken, isSentinelVerifyToken } from '@/lib/verify-token'
 
 async function getCalendarBookingSettings(): Promise<{
   timezone: string | null
@@ -98,10 +99,28 @@ async function sendExternalWebhook(payload: Record<string, unknown>): Promise<vo
   }
 }
 
-function verifyMetaWebhookSignature(input: { request: NextRequest; rawBody: string }): boolean {
-  const appSecret = String(process.env.META_APP_SECRET || '').trim()
-  // Compatibility mode: if not configured, do not block (but once configured, enforce).
-  if (!appSecret) return true
+async function resolveMetaAppSecret(): Promise<string> {
+  const envSecret = String(process.env.META_APP_SECRET || '').trim()
+  if (envSecret) return envSecret
+  // Fallback: secret salvo via wizard/settings (instalações que não setaram a env).
+  try {
+    const creds = await getMetaAppCredentials()
+    if (creds?.appSecret) return String(creds.appSecret).trim()
+  } catch {
+    // ignore — cai no caminho sem-secret abaixo
+  }
+  return ''
+}
+
+async function verifyMetaWebhookSignature(input: { request: NextRequest; rawBody: string }): Promise<boolean> {
+  const appSecret = await resolveMetaAppSecret()
+  // Sem app secret em lugar nenhum (env nem settings): não há como validar a assinatura.
+  // Mantém compatibilidade para não derrubar entrega, mas registra alerta alto —
+  // configure META_APP_SECRET (env) ou metaAppSecret (settings) para fechar o endpoint.
+  if (!appSecret) {
+    console.error('[Webhook] META_APP_SECRET ausente — assinatura NÃO verificada. Configure para proteger o webhook contra eventos forjados.')
+    return true
+  }
 
   const header =
     input.request.headers.get('x-hub-signature-256') ||
@@ -510,13 +529,21 @@ export async function GET(request: NextRequest) {
   console.log(`- Received Token: ${maskTokenPreview(token)}`)
   console.log(`- Expected Token: ${maskTokenPreview(MY_VERIFY_TOKEN)}`)
 
-  if (MY_VERIFY_TOKEN === 'token-not-found-readonly') {
+  // Sem token real configurado: NUNCA aceitar (senão o sentinela vira bypass de verificação).
+  if (isSentinelVerifyToken(MY_VERIFY_TOKEN)) {
     console.warn(
-      '⚠️ Webhook verify token ausente em modo readonly. Configure em settings (webhook_verify_token) ou via env WEBHOOK_VERIFY_TOKEN.'
+      '⚠️ Webhook verify token ausente. Configure em settings (webhook_verify_token) ou via env WEBHOOK_VERIFY_TOKEN.'
     )
+    return new Response('Forbidden', { status: 403 })
   }
 
-  if (mode === 'subscribe' && token === MY_VERIFY_TOKEN) {
+  // Comparação timing-safe do token recebido com o esperado.
+  const tokenMatches =
+    typeof token === 'string' &&
+    token.length === MY_VERIFY_TOKEN.length &&
+    timingSafeEqual(Buffer.from(token), Buffer.from(MY_VERIFY_TOKEN))
+
+  if (mode === 'subscribe' && tokenMatches) {
     console.log('✅ Webhook verified successfully')
     return new Response(challenge || '', { status: 200 })
   }
@@ -533,7 +560,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ status: 'ignored', error: 'Body inválido' }, { status: 400 })
   }
 
-  if (!verifyMetaWebhookSignature({ request, rawBody })) {
+  if (!(await verifyMetaWebhookSignature({ request, rawBody }))) {
     return NextResponse.json({ status: 'unauthorized' }, { status: 401 })
   }
 
