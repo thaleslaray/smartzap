@@ -565,6 +565,16 @@ export async function POST(req: Request) {
         }
       }
 
+      // Valida o formato da DB URL quando resolvida. Vazia é permitido (sem dbPass +
+      // pooler indisponível → migrations puladas, fluxo já tratado acima). Mas uma URL
+      // malformada (componentes vazios em buildPoolerDbUrl/buildDirectDbUrl) quebraria
+      // as migrations depois com erro obscuro — fail fast aqui com mensagem clara.
+      if (dbUrl && !/^postgres(ql)?:\/\/.+@.+\/.+/.test(dbUrl)) {
+        throw new Error(
+          'DB URL resolvida tem formato inválido (esperado postgres://user:pass@host/db). Verifique projectRef e dbPass do Supabase.'
+        );
+      }
+
       console.log('[provision] ✅ Step 5/12: Resolve Supabase Keys - COMPLETO', { hasDbUrl: !!dbUrl });
       stepIndex++;
 
