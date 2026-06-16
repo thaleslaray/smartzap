@@ -358,6 +358,20 @@ function isHashFormat(value: string): boolean {
 }
 
 /**
+ * Comparação de strings em tempo constante (mitiga timing attacks no login).
+ * Edge-safe: não usa node:crypto (timingSafeEqual indisponível no edge runtime).
+ * O tamanho não é segredo — comparamos sempre hashes de tamanho fixo (64 hex).
+ */
+function timingSafeEqualString(a: string, b: string): boolean {
+  if (a.length !== b.length) return false
+  let mismatch = 0
+  for (let i = 0; i < a.length; i++) {
+    mismatch |= a.charCodeAt(i) ^ b.charCodeAt(i)
+  }
+  return mismatch === 0
+}
+
+/**
  * Attempt login with password
  * Validates against MASTER_PASSWORD env var
  *
@@ -390,10 +404,13 @@ export async function loginUser(password: string): Promise<UserAuthResult> {
     if (masterIsHash) {
       // Comportamento original: MASTER_PASSWORD é hash, compara com hash da senha digitada
       const passwordHash = await hashPasswordForLogin(password)
-      isValid = passwordHash === masterPassword
+      isValid = timingSafeEqualString(passwordHash, masterPassword)
     } else {
-      // Novo: MASTER_PASSWORD é texto puro, compara diretamente
-      isValid = password === masterPassword
+      // Novo: MASTER_PASSWORD é texto puro. Hasheia ambos os lados antes de comparar
+      // para fazer a comparação em tempo constante sem vazar o tamanho da senha.
+      const candidateHash = await hashPasswordForLogin(password)
+      const masterHash = await hashPasswordForLogin(masterPassword)
+      isValid = timingSafeEqualString(candidateHash, masterHash)
     }
 
     if (!isValid) {
