@@ -220,6 +220,20 @@ async function listProjectEnvs(
   return data.envs ?? [];
 }
 
+/**
+ * Retorna o conjunto de chaves de env já existentes no projeto Vercel.
+ * Usado para tornar idempotente a geração de segredos (ex.: SMARTZAP_API_KEY):
+ * re-rodar o provision não deve regenerar uma key que já existe.
+ */
+export async function getExistingEnvKeys(
+  token: string,
+  projectId: string,
+  teamId?: string
+): Promise<Set<string>> {
+  const existing = await listProjectEnvs(token, projectId, teamId);
+  return new Set(existing.map((item) => item.key).filter(Boolean));
+}
+
 async function updateEnv(
   token: string,
   projectId: string,

@@ -23,7 +23,7 @@ import { z } from 'zod';
 import { fetchWithTimeout } from '@/lib/installer/fetch-with-timeout';
 import { runSchemaMigration, checkSchemaApplied } from '@/lib/installer/migrations';
 import { bootstrapInstance } from '@/lib/installer/bootstrap';
-import { triggerProjectRedeploy, upsertProjectEnvs, waitForVercelDeploymentReady, disableDeploymentProtection } from '@/lib/installer/vercel';
+import { triggerProjectRedeploy, upsertProjectEnvs, waitForVercelDeploymentReady, disableDeploymentProtection, getExistingEnvKeys } from '@/lib/installer/vercel';
 import {
   resolveSupabaseApiKeys,
   resolveSupabaseDbUrl,
@@ -609,6 +609,9 @@ export async function POST(req: Request) {
       const passwordHash = await hashPassword(identity.password);
       const envTargets = ['production', 'preview'] as const;
 
+      // Idempotência: descobre quais envs já existem para não regenerar segredos.
+      const existingEnvKeys = await getExistingEnvKeys(vercel.token, vercelProject.projectId, vercelProject.teamId);
+
       const envVars = [
         { key: 'NEXT_PUBLIC_SUPABASE_URL', value: supabaseProject.projectUrl, targets: [...envTargets] },
         { key: 'NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY', value: anonKey, targets: [...envTargets] },
@@ -617,12 +620,20 @@ export async function POST(req: Request) {
         { key: 'UPSTASH_REDIS_REST_URL', value: redis.restUrl, targets: [...envTargets] },
         { key: 'UPSTASH_REDIS_REST_TOKEN', value: redis.restToken, targets: [...envTargets] },
         { key: 'MASTER_PASSWORD', value: passwordHash, targets: [...envTargets] },
-        { key: 'SMARTZAP_API_KEY', value: `szap_${crypto.randomUUID().replace(/-/g, '')}`, targets: [...envTargets] },
         { key: 'SETUP_COMPLETE', value: 'true', targets: [...envTargets] },
         // Tokens para métricas de uso (painel de infraestrutura)
         { key: 'VERCEL_API_TOKEN', value: vercel.token, targets: [...envTargets] },
         { key: 'SUPABASE_ACCESS_TOKEN', value: supabase.pat, targets: [...envTargets] },
       ];
+
+      // SMARTZAP_API_KEY: só gera se ainda não existe. Re-rodar o provision não deve
+      // regenerar a key (quebraria integrações que já a utilizam). O valor encrypted
+      // não é legível pela API; por isso preservamos simplesmente não fazendo upsert.
+      if (existingEnvKeys.has('SMARTZAP_API_KEY')) {
+        console.log('[provision] ℹ️ SMARTZAP_API_KEY já existe — preservando key atual (idempotente)');
+      } else {
+        envVars.push({ key: 'SMARTZAP_API_KEY', value: `szap_${crypto.randomUUID().replace(/-/g, '')}`, targets: [...envTargets] });
+      }
 
       console.log('[provision] 📍 Step 8/12: Upserting', envVars.length, 'env vars...');
       await upsertProjectEnvs(vercel.token, vercelProject.projectId, envVars, vercelProject.teamId);
