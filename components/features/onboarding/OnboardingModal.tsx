@@ -188,6 +188,17 @@ export function OnboardingModal({ isConnected, onSaveCredentials, onMarkComplete
     resetOnboarding,
   } = useOnboardingProgress();
 
+  // Estado temporário para credenciais durante o wizard.
+  // IMPORTANTE: declarado antes de qualquer early-return (modo tutorial) para não
+  // violar as Rules of Hooks quando tutorialMode/forceStep mudam numa instância montada.
+  const [credentials, setCredentials] = React.useState<OnboardingCredentials>({
+    phoneNumberId: '',
+    businessAccountId: '',
+    accessToken: '',
+    metaAppId: '',
+    metaAppSecret: '',
+  });
+
   // Se o modal está sendo exibido (banco diz não completo) mas o localStorage
   // está em 'complete', significa que o banco foi resetado - volta para welcome
   // Importante: só reseta se WhatsApp NÃO está conectado, senão é um estado legítimo
@@ -236,15 +247,6 @@ export function OnboardingModal({ isConnected, onSaveCredentials, onMarkComplete
   // baseado em isOnboardingCompletedInDb (banco de dados).
   // Este componente sempre renderiza quando chamado - o pai controla a visibilidade.
   const shouldShow = isLoaded;
-
-  // Estado temporário para credenciais durante o wizard
-  const [credentials, setCredentials] = React.useState<OnboardingCredentials>({
-    phoneNumberId: '',
-    businessAccountId: '',
-    accessToken: '',
-    metaAppId: '',
-    metaAppSecret: '',
-  });
 
   // Usado pelo caminho direto (direct-credentials) - salva e mostra tela de conclusão
   // NÃO marca como completo ainda - só quando o usuário clicar em "Começar a usar"

@@ -58,11 +58,11 @@ export function useOnboardingStatus() {
         queryClient.invalidateQueries({ queryKey: ['healthStatus'] })
     }, [refetch, queryClient])
     
-    // LÓGICA SIMPLES:
-    // 1. Banco diz TRUE → completo
-    // 2. API falhou → assume completo (não incomoda)
-    // 3. Banco diz FALSE → não completo
-    const isCompleted = dbStatus?.onboardingCompleted === true || isError
+    // Fonte da verdade = banco. Em erro, o react-query mantém o último `dbStatus`
+    // conhecido (respeitado aqui). Em erro SEM dado algum (ex.: usuário novo cuja 1ª
+    // request falhou) NÃO assumimos completo — senão o onboarding nunca apareceria.
+    // O modal tem escape ("Configurar depois"), então mostrar a mais é seguro.
+    const isCompleted = dbStatus?.onboardingCompleted === true
     
     return {
         /** Se o onboarding foi completado (DB = true OU erro na API) */
