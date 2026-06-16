@@ -577,10 +577,23 @@ async function checkRateLimiting(): Promise<boolean> {
 }
 
 async function recordFailedAttempt(): Promise<void> {
-  // Get current count
+  // Incremento atômico via RPC (migration 20260616000000_atomic_login_attempts).
+  // Evita a race read-then-write: dois logins concorrentes liam o mesmo valor e
+  // escreviam o mesmo +1, permitindo tentativas extras antes do lockout.
+  try {
+    const { error } = await supabase.rpc('increment_login_attempts')
+    if (!error) return
+    // 42883 = função não existe (migration ainda não aplicada) → cai no fallback.
+    if (error.code !== '42883') {
+      console.warn('[auth] RPC increment_login_attempts falhou, usando fallback:', error.message)
+    }
+  } catch (rpcError) {
+    console.warn('[auth] RPC increment_login_attempts exceção, usando fallback:', rpcError)
+  }
+
+  // Fallback não-atômico (válido enquanto a migration não foi aplicada).
   const setting = await getSetting('login_attempts')
   const currentAttempts = setting ? parseInt(setting.value) || 0 : 0
-
   await upsertSetting('login_attempts', (currentAttempts + 1).toString())
 }
 
