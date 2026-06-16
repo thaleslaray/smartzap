@@ -386,12 +386,20 @@ export function OnboardingModal({ isConnected, onSaveCredentials, onMarkComplete
 
   if (!shouldShow) return null;
 
+  // Escape hatch: nunca deixar o usuário preso no onboarding.
+  // Fecha marcando-o como completo no banco (reconfigurável depois em /settings),
+  // evitando que o modal reabra no próximo render.
+  const handleSkipOnboarding = () => {
+    void onMarkComplete();
+    onClose?.();
+  };
+
   return (
-    <Dialog open={true}>
+    <Dialog open={true} onOpenChange={(open) => { if (!open) handleSkipOnboarding(); }}>
       <DialogContent
         className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto"
         overlayClassName="bg-black/80 backdrop-blur-sm"
-        showCloseButton={false}
+        showCloseButton={true}
         onPointerDownOutside={(e) => e.preventDefault()}
         onEscapeKeyDown={(e) => e.preventDefault()}
       >
@@ -417,6 +425,18 @@ export function OnboardingModal({ isConnected, onSaveCredentials, onMarkComplete
         )}
 
         {renderStep()}
+
+        {currentStep !== 'complete' && (
+          <div className="pt-3 text-center">
+            <button
+              type="button"
+              onClick={handleSkipOnboarding}
+              className="text-sm text-[var(--ds-text-muted)] hover:text-[var(--ds-text-primary)] underline underline-offset-4 transition-colors"
+            >
+              Configurar depois
+            </button>
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   );
