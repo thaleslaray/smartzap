@@ -252,11 +252,15 @@ export async function GET() {
           message: 'Webhook configurado (sem eventos nas últimas 24h)',
         }
       } else if (hasWebhookToken) {
-        // Tem token mas nunca recebeu eventos
+        // Token de webhook salvo = configuração concluída pelo usuário. Reporta 'ok'
+        // (e não 'not_configured') para evitar falso-negativo no checklist de onboarding
+        // enquanto o primeiro evento não chega. A verificação profunda de entrega (ex.:
+        // override de domínio morto na Meta) é responsabilidade do diagnóstico de webhook,
+        // não deste health check coarse. O caso sem token continua 'not_configured' abaixo.
         result.services.webhook = {
-          status: 'not_configured',
+          status: 'ok',
           lastEventAt: null,
-          message: 'Token configurado, aguardando primeiro evento',
+          message: 'Webhook configurado (aguardando primeiro evento)',
         }
       } else {
         // Nenhuma indicação de webhook funcionando
