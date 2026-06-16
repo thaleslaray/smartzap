@@ -183,6 +183,8 @@ export async function POST(req: Request) {
 
       // QStash
       { key: 'QSTASH_TOKEN', value: upstash.qstashToken, targets: envTargets },
+      // Região obrigatória us-east-1 para o runtime (@upstash/qstash lê QSTASH_URL)
+      { key: 'QSTASH_URL', value: 'https://qstash-us-east-1.upstash.io', targets: envTargets },
 
       // Redis
       { key: 'UPSTASH_REDIS_REST_URL', value: upstash.redisRestUrl, targets: envTargets },
