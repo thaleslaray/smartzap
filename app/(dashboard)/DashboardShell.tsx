@@ -48,6 +48,7 @@ import {
     useGuidedTour,
 } from '@/components/features/setup'
 import { useOnboardingStatus } from '@/hooks/useOnboardingStatus'
+import { useRealtimeNotifications } from '@/hooks/useRealtimeNotifications'
 
 export function DashboardShell({
     children,
@@ -80,7 +81,6 @@ export function DashboardShell({
 
     // Enable real-time toast notifications for global events
     // This shows toasts when campaigns complete, new contacts are added, etc.
-    const { useRealtimeNotifications } = require('@/hooks/useRealtimeNotifications')
     useRealtimeNotifications({ enabled: true })
 
     // T069: Unread count for inbox badge in sidebar
@@ -370,17 +370,6 @@ export function DashboardShell({
         return 'App'
     }
 
-    // Show onboarding overlay if setup is needed
-    if (needsSetup) {
-        return (
-            <OnboardingOverlay
-                health={healthStatus || null}
-                isLoading={isHealthFetching}
-                onRefresh={() => refetchHealth()}
-            />
-        )
-    }
-
     // Determina se deve mostrar o modal de onboarding do WhatsApp
     // Mostra quando: infra OK E onboarding não marcado como completo no banco
     // Só mostra modal de onboarding após carregar status do banco (evita flash)
@@ -395,6 +384,7 @@ export function DashboardShell({
     const isInboxRoute = pathname?.startsWith('/inbox') ?? false
 
     // Sidebar component props - memoized to prevent DashboardSidebar re-renders
+    // IMPORTANTE: Todos os hooks devem ser chamados ANTES de qualquer early return
     const sidebarProps = useMemo(() => ({
         pathname,
         navItems: navItems as NavItem[],
@@ -418,6 +408,17 @@ export function DashboardShell({
         handleLogout,
         prefetchRoute,
     ])
+
+    // Show onboarding overlay if setup is needed (depois de todos os hooks)
+    if (needsSetup) {
+        return (
+            <OnboardingOverlay
+                health={healthStatus || null}
+                isLoading={isHealthFetching}
+                onRefresh={() => refetchHealth()}
+            />
+        )
+    }
 
     if (isBuilderRoute) {
         return (
