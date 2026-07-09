@@ -362,7 +362,15 @@ export async function POST(req: Request) {
       { status: 400 }
     );
   }
-  const raw = JSON.parse(rawText);
+  let raw: unknown;
+  try {
+    raw = JSON.parse(rawText);
+  } catch {
+    return new Response(
+      JSON.stringify({ error: 'JSON inválido no corpo da requisição' }),
+      { status: 400 }
+    );
+  }
 
   const parsed = ProvisionSchema.safeParse(raw);
 
