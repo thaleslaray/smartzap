@@ -72,11 +72,16 @@ function LoginForm() {
 
     setIsLoading(true)
 
+    const timeoutMs = 15000
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
+
     try {
       const response = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password })
+        body: JSON.stringify({ password }),
+        signal: controller.signal
       })
 
       const data = await response.json()
@@ -90,8 +95,13 @@ function LoginForm() {
       router.refresh()
 
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao fazer login')
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        setError('A requisição demorou demais e foi cancelada. Isso costuma indicar bloqueio de rede (proxy, firewall, antivírus ou aviso de segurança do navegador) antes de chegar ao servidor — não é senha incorreta. Tente em outra rede/dispositivo.')
+      } else {
+        setError(err instanceof Error ? err.message : 'Erro ao fazer login')
+      }
     } finally {
+      clearTimeout(timeoutId)
       setIsLoading(false)
     }
   }

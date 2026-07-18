@@ -41,6 +41,7 @@ import {
   handleInboundMessage,
   handleDeliveryStatus,
 } from '@/lib/inbox/inbox-webhook'
+import { downloadAndStoreInboundMedia } from '@/lib/whatsapp/inbound-media'
 
 // Get WhatsApp Access Token from centralized helper
 async function getWhatsAppAccessToken(): Promise<string | null> {
@@ -134,6 +135,12 @@ function extractInboundText(message: any): string {
 
   const interactiveListTitle = message?.interactive?.list_reply?.title
   if (typeof interactiveListTitle === 'string' && interactiveListTitle.trim()) return interactiveListTitle
+
+  const mediaCaption = message?.image?.caption || message?.video?.caption || message?.document?.caption
+  if (typeof mediaCaption === 'string' && mediaCaption.trim()) return mediaCaption
+
+  const documentFilename = message?.document?.filename
+  if (typeof documentFilename === 'string' && documentFilename.trim()) return documentFilename
 
   return ''
 }
@@ -566,10 +573,17 @@ export async function POST(request: NextRequest) {
   // OTIMIZAÇÃO V2: Paraleliza busca de defaultWorkflowId + keywordWorkflows
   // Antes: 2 queries sequenciais (~200ms cada)
   // Depois: 1 batch paralelo (~200ms total)
-  const [defaultWorkflowIdFromDb, allKeywordWorkflows] = await Promise.all([
+  const [defaultWorkflowIdFromDb, allKeywordWorkflows, webhookCredentials] = await Promise.all([
     settingsDb.get('workflow_builder_default_id'),
     loadKeywordWorkflows(null), // Carrega todos, filtra depois
+    getWhatsAppCredentials(),
   ])
+
+  // Uma mesma WABA pode ter múltiplos números de telefone, cada um usado por uma
+  // plataforma diferente (ex: outro app conectado à mesma conta comercial). A Meta
+  // manda uma cópia do evento pra todos os apps inscritos na WABA — sem filtrar por
+  // phone_number_id, processamos aqui mensagens que na verdade são de outro número.
+  const configuredPhoneNumberId = webhookCredentials?.phoneNumberId || null
 
   const defaultWorkflowId =
     defaultWorkflowIdFromDb ||
@@ -656,6 +670,20 @@ export async function POST(request: NextRequest) {
           } catch (e) {
             console.error('Failed to process template status update:', e)
           }
+        }
+
+        // =========================================================
+        // Filtra mensagens/status que não são do número configurado neste app
+        // (ver comentário acima de configuredPhoneNumberId). Template status
+        // updates (acima) não carregam phone_number_id — são a nível de WABA
+        // e continuam sendo processados normalmente.
+        // =========================================================
+        const changePhoneNumberId = change.value?.metadata?.phone_number_id || null
+        if (changePhoneNumberId && configuredPhoneNumberId && changePhoneNumberId !== configuredPhoneNumberId) {
+          console.log(
+            `⏭️ [Webhook] Ignorando evento de phone_number_id=${changePhoneNumberId} (este app está configurado para ${configuredPhoneNumberId})`
+          )
+          continue
         }
 
         const statuses = change.value?.statuses || []
@@ -951,13 +979,26 @@ export async function POST(request: NextRequest) {
           // T046-T047: Persist to Inbox and trigger AI if mode=bot
           // =================================================================
           try {
+            // Meta não envia URL de mídia no payload do webhook, só um media_id — é preciso
+            // resolver e baixar via Graph API para termos uma URL durável pro Inbox renderizar.
+            const mediaId =
+              message.image?.id || message.video?.id || message.audio?.id || message.document?.id || null
+            let mediaUrl: string | null = null
+            if (mediaId) {
+              const downloaded = await downloadAndStoreInboundMedia({
+                mediaId,
+                waMessageId: message.id || mediaId,
+              })
+              mediaUrl = downloaded?.url || null
+            }
+
             const inboxResult = await handleInboundMessage({
               messageId: message.id || '',
               from,
               type: messageType,
               text,
               timestamp: message.timestamp,
-              mediaUrl: message.image?.url || message.video?.url || message.audio?.url || message.document?.url || null,
+              mediaUrl,
               phoneNumberId: phoneNumberId || undefined,
             })
             console.log(`📥 Inbox: conversation=${inboxResult.conversationId}, message=${inboxResult.messageId}, ai=${inboxResult.triggeredAI}`)

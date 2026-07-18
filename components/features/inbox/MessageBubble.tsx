@@ -12,7 +12,7 @@
  */
 
 import React, { memo, useMemo } from 'react'
-import { Check, CheckCheck, Clock, AlertCircle, Sparkles, ArrowRightLeft } from 'lucide-react'
+import { Check, CheckCheck, Clock, AlertCircle, Sparkles, ArrowRightLeft, FileText, Download, ImageOff } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { formatTime } from '@/lib/date-utils'
 import {
@@ -307,6 +307,83 @@ function TemplateMessageContent({ parsed, time, deliveryStatus }: {
   )
 }
 
+// ========== Media Content Renderer ==========
+
+/**
+ * Renderiza imagem, áudio, vídeo ou documento recebido/enviado via WhatsApp.
+ * `media_url` pode ser null se o download da mídia falhou (ex: token expirado) —
+ * nesse caso mostramos um aviso em vez de quebrar a mensagem.
+ */
+function MediaContent({
+  type,
+  mediaUrl,
+  caption,
+}: {
+  type: 'image' | 'audio' | 'video' | 'document'
+  mediaUrl: string | null
+  caption: string
+}) {
+  if (!mediaUrl) {
+    return (
+      <div className="flex items-center gap-2 text-sm text-[var(--ds-text-muted)] bg-black/10 rounded-lg px-3 py-2">
+        <ImageOff className="h-4 w-4 flex-shrink-0" />
+        <span>Mídia indisponível</span>
+      </div>
+    )
+  }
+
+  if (type === 'image') {
+    return (
+      <div className="flex flex-col gap-1.5">
+        <a href={mediaUrl} target="_blank" rel="noopener noreferrer">
+          <img
+            src={mediaUrl}
+            alt={caption || 'Imagem'}
+            loading="lazy"
+            className="max-w-[280px] max-h-[320px] w-auto rounded-lg object-cover cursor-zoom-in"
+          />
+        </a>
+        {caption && (
+          <p className="text-base leading-relaxed whitespace-pre-wrap break-words">
+            <WhatsAppFormattedText text={caption} />
+          </p>
+        )}
+      </div>
+    )
+  }
+
+  if (type === 'video') {
+    return (
+      <div className="flex flex-col gap-1.5">
+        <video controls src={mediaUrl} className="max-w-[280px] max-h-[320px] rounded-lg" />
+        {caption && (
+          <p className="text-base leading-relaxed whitespace-pre-wrap break-words">
+            <WhatsAppFormattedText text={caption} />
+          </p>
+        )}
+      </div>
+    )
+  }
+
+  if (type === 'audio') {
+    return <audio controls src={mediaUrl} className="h-10 max-w-[260px]" />
+  }
+
+  // document
+  return (
+    <a
+      href={mediaUrl}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="flex items-center gap-2.5 bg-black/10 hover:bg-black/20 transition-colors rounded-lg px-3 py-2.5 max-w-[260px]"
+    >
+      <FileText className="h-5 w-5 flex-shrink-0" />
+      <span className="text-sm truncate flex-1">{caption || 'Documento'}</span>
+      <Download className="h-3.5 w-3.5 flex-shrink-0 opacity-70" />
+    </a>
+  )
+}
+
 // Check if message is a handoff/system message
 function isHandoffMessage(content: string): boolean {
   return content.includes('**Transferência') || content.includes('**Motivo:**')
@@ -335,6 +412,8 @@ export const MessageBubble = memo(function MessageBubble({
   const {
     direction,
     content,
+    message_type,
+    media_url,
     delivery_status,
     created_at,
     ai_sentiment,
@@ -344,12 +423,14 @@ export const MessageBubble = memo(function MessageBubble({
   const isInbound = direction === 'inbound'
   const isAIResponse = !isInbound && (message.ai_response_id || ai_sources)
   const handoffData = parseHandoffMessage(content)
+  const isMedia =
+    message_type === 'image' || message_type === 'audio' || message_type === 'video' || message_type === 'document'
 
   // Check if this is a template message
   const parsedTemplate = useMemo(() => {
-    if (isInbound) return null // Templates são sempre outbound
+    if (isInbound || isMedia) return null // Templates são sempre outbound e não são mídia
     return parseTemplateMessage(content)
-  }, [content, isInbound])
+  }, [content, isInbound, isMedia])
 
   const isTemplate = parsedTemplate !== null
 
@@ -445,6 +526,12 @@ export const MessageBubble = memo(function MessageBubble({
               parsed={parsedTemplate}
               time={time}
               deliveryStatus={delivery_status}
+            />
+          ) : isMedia ? (
+            <MediaContent
+              type={message_type as 'image' | 'audio' | 'video' | 'document'}
+              mediaUrl={media_url}
+              caption={content}
             />
           ) : (
             <>
